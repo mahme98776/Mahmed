@@ -1,0 +1,7 @@
+{
+  "name": "دبلجة",
+  "description": "برنامج دبلجة سهل الاستخدام ومجاني للفيديوهات والمقاطع الصوتية مع تسجيل مباشر ومؤثرات صوتية ودبلجة ذكية",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

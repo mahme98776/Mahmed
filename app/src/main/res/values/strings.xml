@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">دبلجة</string>
+    <string name="app_full_title">استوديو الدبلجة الذكي</string>
+    <string name="app_subtitle">دبلجة فيديوهات وأصوات مجانية وسهلة</string>
+    
+    <string name="tab_studio">الاستوديو</string>
+    <string name="tab_projects">مشاريعي</string>
+    <string name="tab_voices">الأصوات والمؤثرات</string>
+    <string name="tab_ai_dub">الدبلجة بالذكاء الاصطناعي</string>
+    
+    <string name="record_dub">تسجيل صوتي</string>
+    <string name="stop_recording">إيقاف التسجيل</string>
+    <string name="play">تشغيل</string>
+    <string name="pause">إيقاف مؤقت</string>
+    <string name="save_project">حفظ المشروع</string>
+    <string name="export_audio">تصدير الدبلجة</string>
+    <string name="new_project">مشروع جديد</string>
+    
+    <string name="pitch_normal">طبيعي</string>
+    <string name="pitch_deep">صوت ضخم / سينمائي</string>
+    <string name="pitch_chipmunk">كرتون / سناجب</string>
+    <string name="pitch_robot">روبوت آلي</string>
+    <string name="pitch_echo">صدى واستوديو</string>
+    <string name="pitch_radio">مذياع قديم</string>
+    
+    <string name="voice_arabic_male">صوت رجالي فصيح</string>
+    <string name="voice_arabic_female">صوت نسائي ناعم</string>
+    <string name="voice_dramatic">صوت درامي وثائقي</string>
+    <string name="voice_cartoon">شخصية كرتونية مرحة</string>
+    <string name="voice_enthusiastic">معلق حماسي</string>
+    
+    <string name="instant_dub_title">الدبلجة الفورية والتعرف الصوتي</string>
+    <string name="instant_dub_subtitle">التعرف التلقائي على جنس الصوت وتحويله لحظياً (ذكر ⇄ أنثى)</string>
+    <string name="detected_male">صوت رجالي (قرار)</string>
+    <string name="detected_female">صوت نسائي (جواب)</string>
+    <string name="detected_child">صوت طفولي / حاد</string>
+    <string name="auto_gender_swap">تحويل تلقائي ذكي</string>
+</resources>
