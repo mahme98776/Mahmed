@@ -236,7 +236,14 @@ data class StudioUiState(
     val isGeminiTranslating: Boolean = false,
     val targetTranslationLanguage: String = "العربية",
     val isTtsSynthesizingTimeline: Boolean = false,
-    val synthesizedDubbedAudioPath: String? = null
+    val synthesizedDubbedAudioPath: String? = null,
+
+    // Gemini AI Audio Denoising & Acoustic Enhancement State
+    val isDenoisingAudio: Boolean = false,
+    val denoiseProgress: Float = 0f,
+    val denoiseStatusText: String = "",
+    val lastDenoiseResult: com.example.audio.gemini.GeminiAudioEnhanceResult? = null,
+    val showDenoiseDialog: Boolean = false
 )
 
 data class VideoSpeechToTextUiState(
@@ -288,6 +295,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     val securityAuditDiagnosticManager = com.example.security.SecurityAuditDiagnosticManager(application)
     val audioDubbingManager = AudioDubbingManager(application, ttsManager, cloudTtsService, cloudTtsPrefs)
     val geminiOneClickDubber = GeminiOneClickDubber(application, ttsManager)
+    val geminiAudioDenoiseEnhancer = com.example.audio.gemini.GeminiAudioDenoiseEnhancer(application)
     val sttManager = SpeechToTextManager(application)
     val geminiUnifiedClient = GeminiUnifiedClient(application)
     val youTubeAutoDubberEngine = com.example.audio.youtube.YouTubeAutoDubberEngine(application, ttsManager, geminiUnifiedClient)
@@ -729,6 +737,97 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                 currentlyPlayingCueId = null,
                 isPlayingAll = false
             )
+        }
+    }
+
+    // ========================================================
+    // Gemini Audio Denoise & Acoustic Enhancement API Actions
+    // ========================================================
+
+    fun setDenoiseDialogVisible(visible: Boolean) {
+        _uiState.value = _uiState.value.copy(showDenoiseDialog = visible)
+    }
+
+    fun enhanceRecordedAudioWithGemini(
+        intensity: Float = 0.85f,
+        customApiKey: String = ""
+    ) {
+        val audioPath = _uiState.value.recordedAudioPath
+        if (audioPath.isNullOrBlank()) {
+            _uiState.value = _uiState.value.copy(
+                toastMessage = "لا يوجد تسجيل صوتي حالي للمعالجة! يرجى تسجيل مقطع أولاً 🎙️"
+            )
+            return
+        }
+
+        val audioFile = File(audioPath)
+        if (!audioFile.exists()) {
+            _uiState.value = _uiState.value.copy(
+                toastMessage = "ملف الصوت المسجل غير موجود على مساحة التخزين ⚠️"
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isDenoisingAudio = true,
+                denoiseProgress = 0.1f,
+                denoiseStatusText = "بدء فحص وتحليل الصوت بالذكاء الاصطناعي Gemini...",
+                showDenoiseDialog = true
+            )
+
+            // Listen to enhancer progress
+            val stateCollectorJob = launch {
+                geminiAudioDenoiseEnhancer.enhanceState.collect { state ->
+                    when (state) {
+                        is com.example.audio.gemini.AudioEnhanceState.Processing -> {
+                            _uiState.value = _uiState.value.copy(
+                                denoiseProgress = state.progress,
+                                denoiseStatusText = state.stage
+                            )
+                        }
+                        is com.example.audio.gemini.AudioEnhanceState.Success -> {
+                            _uiState.value = _uiState.value.copy(
+                                isDenoisingAudio = false,
+                                denoiseProgress = 1.0f,
+                                denoiseStatusText = "اكتملت إزالة الضوضاء وتحسين الصوت بنجاح! ✨",
+                                lastDenoiseResult = state.result,
+                                recordedAudioPath = state.result.enhancedAudioFile?.absolutePath ?: audioPath,
+                                toastMessage = "تم تحسين الصوت بنجاح! نسبة إزالة الضوضاء: ${state.result.noiseReductionPercent}% 🎉"
+                            )
+                        }
+                        is com.example.audio.gemini.AudioEnhanceState.Error -> {
+                            _uiState.value = _uiState.value.copy(
+                                isDenoisingAudio = false,
+                                denoiseStatusText = "فشلت المعالجة: ${state.message}",
+                                toastMessage = "خطأ في المعالجة: ${state.message} ⚠️"
+                            )
+                        }
+                        else -> Unit
+                    }
+                }
+            }
+
+            val result = geminiAudioDenoiseEnhancer.enhanceRecordedAudio(
+                inputFile = audioFile,
+                customApiKey = customApiKey,
+                targetIntensity = intensity
+            )
+
+            stateCollectorJob.cancel()
+
+            if (result.isSuccess && result.enhancedAudioFile != null) {
+                _uiState.value = _uiState.value.copy(
+                    isDenoisingAudio = false,
+                    recordedAudioPath = result.enhancedAudioFile.absolutePath,
+                    lastDenoiseResult = result
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    isDenoisingAudio = false,
+                    lastDenoiseResult = result
+                )
+            }
         }
     }
 
@@ -3722,13 +3821,17 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun saveGitHubUpdateConfig(owner: String, repo: String, customUrl: String = "") {
-        updateManager.onlineProvider.githubOwner = owner
-        updateManager.onlineProvider.githubRepo = repo
-        updateManager.onlineProvider.customApiUrl = customUrl
+    fun saveGitHubUpdateConfig(owner: String, repo: String, customUrl: String = "", token: String = "") {
+        updateManager.onlineProvider.githubOwner = owner.trim()
+        updateManager.onlineProvider.githubRepo = repo.trim()
+        updateManager.onlineProvider.customApiUrl = customUrl.trim()
+        if (token.isNotBlank()) {
+            updateManager.onlineProvider.githubToken = token.trim()
+        }
         _uiState.value = _uiState.value.copy(
             toastMessage = "تم حفظ إعدادات خادم ومستودع التحديثات بنجاح! 🌐💾"
         )
+        checkForAppUpdates()
     }
 
     // ==========================================

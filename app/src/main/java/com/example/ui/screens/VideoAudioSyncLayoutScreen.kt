@@ -122,6 +122,7 @@ import com.example.audio.ArabicPhoneticsEngine
 import com.example.model.DubbingClip
 import com.example.model.ScriptLine
 import com.example.ui.DubbingViewModel
+import com.example.ui.components.Media3ExoPlayerComponent
 import com.example.ui.components.VideoCanvasPlayer
 import java.io.File
 import java.util.Locale
@@ -509,6 +510,8 @@ private fun VideoPlayerSyncCard(
     onSeek: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var useExoPlayerEngine by remember { mutableStateOf(true) }
+
     ElevatedCard(
         modifier = modifier
             .shadow(6.dp, RoundedCornerShape(18.dp))
@@ -517,6 +520,38 @@ private fun VideoPlayerSyncCard(
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
+            // Engine Toggle Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (useExoPlayerEngine) "⚡ مشغل ExoPlayer عالي الدقة" else "🎨 مشغل الكانفاس التفاعلي",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (useExoPlayerEngine) Color(0xFF6366F1).copy(alpha = 0.2f) else Color(0xFF2B2930),
+                    border = BorderStroke(0.8.dp, if (useExoPlayerEngine) Color(0xFF818CF8) else Color(0xFF49454F)),
+                    modifier = Modifier
+                        .clickable { useExoPlayerEngine = !useExoPlayerEngine }
+                        .testTag("sync_toggle_exoplayer_btn")
+                ) {
+                    Text(
+                        text = if (useExoPlayerEngine) "التحويل للكانفاس ↺" else "تفعيل ExoPlayer ⚡",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (useExoPlayerEngine) Color(0xFFC7D2FE) else Color(0xFFCAC4D0),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
             // Video Display Canvas
             Box(
                 modifier = Modifier
@@ -524,18 +559,34 @@ private fun VideoPlayerSyncCard(
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF0F172A))
             ) {
-                VideoCanvasPlayer(
-                    clip = clip,
-                    currentSeconds = currentSeconds,
-                    isPlaying = isPlaying,
-                    isRecording = false,
-                    activeLine = activeLine,
-                    isMutedOriginal = isMutedOriginal,
-                    onTogglePlay = onTogglePlay,
-                    onToggleMute = onToggleMute,
-                    onSeek = onSeek,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (useExoPlayerEngine) {
+                    Media3ExoPlayerComponent(
+                        mediaUri = clip.videoUri,
+                        title = clip.title,
+                        isPlaying = isPlaying,
+                        currentSeconds = currentSeconds,
+                        activeSubtitleText = activeLine?.textArabic,
+                        characterName = activeLine?.characterName,
+                        isMuted = isMutedOriginal,
+                        onTogglePlay = onTogglePlay,
+                        onSeekToSeconds = onSeek,
+                        onToggleMute = onToggleMute,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    VideoCanvasPlayer(
+                        clip = clip,
+                        currentSeconds = currentSeconds,
+                        isPlaying = isPlaying,
+                        isRecording = false,
+                        activeLine = activeLine,
+                        isMutedOriginal = isMutedOriginal,
+                        onTogglePlay = onTogglePlay,
+                        onToggleMute = onToggleMute,
+                        onSeek = onSeek,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 // Sync Status HUD Overlay
                 Surface(

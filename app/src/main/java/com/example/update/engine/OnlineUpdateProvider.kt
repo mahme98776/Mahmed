@@ -31,12 +31,13 @@ class OnlineUpdateProvider(private val context: Context) {
     companion object {
         private const val KEY_GITHUB_OWNER = "github_owner"
         private const val KEY_GITHUB_REPO = "github_repo"
+        private const val KEY_GITHUB_TOKEN = "github_token"
         private const val KEY_CUSTOM_API_URL = "custom_api_url"
         private const val KEY_AUTO_CHECK_ENABLED = "auto_check_enabled"
         
-        // Defaults
+        // Defaults - Auto configured for user repository
         const val DEFAULT_GITHUB_OWNER = "mahme98776"
-        const val DEFAULT_GITHUB_REPO = "VoiceMasterPro"
+        const val DEFAULT_GITHUB_REPO = "Mahmed"
     }
 
     var githubOwner: String
@@ -46,6 +47,10 @@ class OnlineUpdateProvider(private val context: Context) {
     var githubRepo: String
         get() = prefs.getString(KEY_GITHUB_REPO, DEFAULT_GITHUB_REPO) ?: DEFAULT_GITHUB_REPO
         set(value) = prefs.edit().putString(KEY_GITHUB_REPO, value.trim()).apply()
+
+    var githubToken: String
+        get() = prefs.getString(KEY_GITHUB_TOKEN, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_GITHUB_TOKEN, value.trim()).apply()
 
     var customApiUrl: String
         get() = prefs.getString(KEY_CUSTOM_API_URL, "") ?: ""
@@ -80,6 +85,9 @@ class OnlineUpdateProvider(private val context: Context) {
                 requestMethod = "GET"
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
                 setRequestProperty("User-Agent", "VoiceMasterPro-AndroidApp")
+                if (githubToken.isNotBlank()) {
+                    setRequestProperty("Authorization", "Bearer $githubToken")
+                }
                 connectTimeout = 10000
                 readTimeout = 10000
             }

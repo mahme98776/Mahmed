@@ -561,6 +561,7 @@ fun GitHubConfigTab(
     val onlineProvider = viewModel.updateManager.onlineProvider
     var ownerText by remember { mutableStateOf(onlineProvider.githubOwner) }
     var repoText by remember { mutableStateOf(onlineProvider.githubRepo) }
+    var tokenText by remember { mutableStateOf(onlineProvider.githubToken) }
     var customUrlText by remember { mutableStateOf(onlineProvider.customApiUrl) }
 
     LazyColumn(
@@ -608,7 +609,17 @@ fun GitHubConfigTab(
                         value = repoText,
                         onValueChange = { repoText = it },
                         label = { Text("اسم المستودع (Repository Name)") },
-                        placeholder = { Text("VoiceMasterPro") },
+                        placeholder = { Text("Mahmed") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = tokenText,
+                        onValueChange = { tokenText = it },
+                        label = { Text("رمز الوصول الشخصي للمستودع الخاص (GitHub Token / PAT)") },
+                        placeholder = { Text("ghp_xxxxxxxxxxxxxxxxxxxx (اختياري للمستودعات الخاصة)") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true
@@ -626,7 +637,7 @@ fun GitHubConfigTab(
 
                     Button(
                         onClick = {
-                            viewModel.saveGitHubUpdateConfig(ownerText, repoText, customUrlText)
+                            viewModel.saveGitHubUpdateConfig(ownerText, repoText, customUrlText, tokenText)
                             onSave()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),

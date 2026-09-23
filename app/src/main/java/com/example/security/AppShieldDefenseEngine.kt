@@ -65,15 +65,10 @@ object AppShieldDefenseEngine {
 
     private const val KEY_DEVELOPER_AUTHENTICATED = "dev_account_authenticated_status"
 
-    // Default Permitted Clear Keys for easy, fail-safe authentication
+    // Permitted Developer Passwords strictly limited to user request
     private val DEFAULT_DEV_KEYS = setOf(
-        MASTER_DEVELOPER_PASSWORD,
-        "fgyyu855557y5,z*#]+dgg",
         "98776-ProDub@2026",
-        "98776",
-        "98776@2026",
-        "mahme98776",
-        "ProDub2026"
+        "fgyyu855557y5,z*#]+dgg"
     )
 
     fun isAuthorizedDeveloperEmail(email: String?): Boolean {
@@ -169,12 +164,8 @@ object AppShieldDefenseEngine {
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        val savedHmac = prefs.getString(KEY_DEVELOPER_PIN_HASH, null)
-        val inputHmac = generateHmacSha256(cleanInput, PIN_SALT)
-
-        val isDirectKeyMatch = DEFAULT_DEV_KEYS.contains(cleanInput)
-        val isHmacMatch = savedHmac != null && MessageDigest.isEqual(inputHmac.toByteArray(), savedHmac.toByteArray())
-        val isMatch = isDirectKeyMatch || isHmacMatch
+        // Strict validation: Only the two designated passwords are authorized
+        val isMatch = DEFAULT_DEV_KEYS.contains(cleanInput)
 
         if (isMatch) {
             // Reset failure counter on success

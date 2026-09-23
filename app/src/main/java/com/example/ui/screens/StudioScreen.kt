@@ -67,6 +67,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -90,6 +91,7 @@ import com.example.ui.components.VolumeNormalizationSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -114,6 +116,7 @@ import com.example.ui.DubbingViewModel
 import com.example.ui.components.AiCopilotAssistantModal
 import com.example.ui.components.AudioWaveformVisualizer
 import com.example.ui.components.IntegratedVideoPlayerComponent
+import com.example.ui.components.Media3ExoPlayerComponent
 import com.example.ui.components.MixerControlSheet
 import com.example.ui.components.OnboardingTourManager
 import com.example.ui.components.OnboardingTourOverlay
@@ -155,7 +158,8 @@ fun StudioScreen(
     var showSaveDialog by remember { mutableStateOf(false) }
     var showStudioShareDialog by remember { mutableStateOf(false) }
     var projectTitleInput by remember { mutableStateOf("") }
-    var isFramePrecisionPlayerActive by remember { mutableStateOf(false) }
+    // 0 = Media3 ExoPlayer (Default High-Performance Engine), 1 = Frame Precision Player, 2 = Animated Studio Canvas
+    var playerEngineMode by remember { mutableIntStateOf(0) }
 
     val audioPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -477,65 +481,130 @@ fun StudioScreen(
 
                 // Video Player Mode Switcher Bar
                 item {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 4.dp)
                     ) {
-                        Text(
-                            text = if (isFramePrecisionPlayerActive) "🎬 مشغل المعاينة والتنقل إطاراً بإطار" else "🎥 كانفاس الاستوديو المباشر",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isFramePrecisionPlayerActive) Color(0xFF6366F1).copy(alpha = 0.2f) else Color(0xFF2B2930),
-                            border = BorderStroke(1.dp, if (isFramePrecisionPlayerActive) Color(0xFF818CF8) else Color(0xFF49454F)),
-                            modifier = Modifier
-                                .clickable { isFramePrecisionPlayerActive = !isFramePrecisionPlayerActive }
-                                .testTag("toggle_precision_player_mode_btn")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isFramePrecisionPlayerActive) "العودة للكانفاس ↺" else "مشغل إطار بإطار 🎞️",
-                                fontSize = 11.sp,
+                                text = when (playerEngineMode) {
+                                    0 -> "⚡ مشغل Media3 ExoPlayer فائق السرعة"
+                                    1 -> "🎬 مشغل المعاينة والتنقل إطاراً بإطار"
+                                    else -> "🎥 كانفاس الاستوديو المباشر"
+                                },
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isFramePrecisionPlayerActive) Color(0xFFC7D2FE) else Color(0xFFCAC4D0),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
+
+                            // Quick 3-mode selector
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (playerEngineMode == 0) Color(0xFF6366F1).copy(alpha = 0.25f) else Color(0xFF2B2930),
+                                    border = BorderStroke(1.dp, if (playerEngineMode == 0) Color(0xFF818CF8) else Color(0xFF49454F)),
+                                    modifier = Modifier
+                                        .clickable { playerEngineMode = 0 }
+                                        .testTag("switch_to_exoplayer_mode_btn")
+                                ) {
+                                    Text(
+                                        text = "ExoPlayer ⚡",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (playerEngineMode == 0) Color(0xFFC7D2FE) else Color(0xFFCAC4D0),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (playerEngineMode == 1) Color(0xFF6366F1).copy(alpha = 0.25f) else Color(0xFF2B2930),
+                                    border = BorderStroke(1.dp, if (playerEngineMode == 1) Color(0xFF818CF8) else Color(0xFF49454F)),
+                                    modifier = Modifier
+                                        .clickable { playerEngineMode = 1 }
+                                        .testTag("switch_to_precision_mode_btn")
+                                ) {
+                                    Text(
+                                        text = "إطار بإطار 🎞️",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (playerEngineMode == 1) Color(0xFFC7D2FE) else Color(0xFFCAC4D0),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (playerEngineMode == 2) Color(0xFF6366F1).copy(alpha = 0.25f) else Color(0xFF2B2930),
+                                    border = BorderStroke(1.dp, if (playerEngineMode == 2) Color(0xFF818CF8) else Color(0xFF49454F)),
+                                    modifier = Modifier
+                                        .clickable { playerEngineMode = 2 }
+                                        .testTag("switch_to_canvas_mode_btn")
+                                ) {
+                                    Text(
+                                        text = "الكانفاس 🎨",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (playerEngineMode == 2) Color(0xFFC7D2FE) else Color(0xFFCAC4D0),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                // Video / Canvas Scene Player
+                // Video / Audio / Canvas Scene Player
                 item {
                     val activeLine = state.scriptLines.getOrNull(state.activeLineIndex)
-                    if (isFramePrecisionPlayerActive) {
-                        IntegratedVideoPlayerComponent(
-                            clip = state.currentClip,
-                            currentSeconds = state.currentPlaybackSeconds,
-                            isPlaying = state.isPlaying,
-                            activeLine = activeLine,
-                            isMutedOriginal = state.isMutedOriginal,
-                            onTogglePlay = { viewModel.togglePlayPause() },
-                            onSeek = { viewModel.seekTo(it) },
-                            onToggleMute = { viewModel.toggleMuteOriginal() },
-                            modifier = Modifier.testTag("studio_integrated_video_player")
-                        )
-                    } else {
-                        VideoCanvasPlayer(
-                            clip = state.currentClip,
-                            currentSeconds = state.currentPlaybackSeconds,
-                            isPlaying = state.isPlaying,
-                            isRecording = state.isRecording,
-                            activeLine = activeLine,
-                            isMutedOriginal = state.isMutedOriginal,
-                            onTogglePlay = { viewModel.togglePlayPause() },
-                            onToggleMute = { viewModel.toggleMuteOriginal() },
-                            onSeek = { viewModel.seekTo(it) }
-                        )
+                    when (playerEngineMode) {
+                        0 -> {
+                            // Primary Media3 ExoPlayer Component
+                            Media3ExoPlayerComponent(
+                                mediaUri = state.currentClip.videoUri ?: state.recordedAudioPath,
+                                title = state.currentClip.title,
+                                isPlaying = state.isPlaying,
+                                currentSeconds = state.currentPlaybackSeconds,
+                                activeSubtitleText = activeLine?.textArabic,
+                                characterName = activeLine?.characterName,
+                                isMuted = state.isMutedOriginal,
+                                onTogglePlay = { viewModel.togglePlayPause() },
+                                onSeekToSeconds = { viewModel.seekTo(it) },
+                                onToggleMute = { viewModel.toggleMuteOriginal() },
+                                modifier = Modifier.testTag("studio_media3_exoplayer_view")
+                            )
+                        }
+                        1 -> {
+                            IntegratedVideoPlayerComponent(
+                                clip = state.currentClip,
+                                currentSeconds = state.currentPlaybackSeconds,
+                                isPlaying = state.isPlaying,
+                                activeLine = activeLine,
+                                isMutedOriginal = state.isMutedOriginal,
+                                onTogglePlay = { viewModel.togglePlayPause() },
+                                onSeek = { viewModel.seekTo(it) },
+                                onToggleMute = { viewModel.toggleMuteOriginal() },
+                                modifier = Modifier.testTag("studio_integrated_video_player")
+                            )
+                        }
+                        else -> {
+                            VideoCanvasPlayer(
+                                clip = state.currentClip,
+                                currentSeconds = state.currentPlaybackSeconds,
+                                isPlaying = state.isPlaying,
+                                isRecording = state.isRecording,
+                                activeLine = activeLine,
+                                isMutedOriginal = state.isMutedOriginal,
+                                onTogglePlay = { viewModel.togglePlayPause() },
+                                onToggleMute = { viewModel.toggleMuteOriginal() },
+                                onSeek = { viewModel.seekTo(it) }
+                            )
+                        }
                     }
                 }
 
@@ -885,6 +954,38 @@ fun StudioScreen(
                                     }
 
                                     if (state.recordedAudioPath != null) {
+                                        // Gemini AI Audio Denoising & Enhancement Button
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = Color(0xFF0F766E).copy(alpha = 0.35f),
+                                            border = BorderStroke(1.dp, Color(0xFF2DD4BF)),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable { viewModel.enhanceRecordedAudioWithGemini() }
+                                                .testTag("quick_gemini_denoise_btn")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AutoAwesome,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF2DD4BF),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    text = "إزالة الضوضاء ✨",
+                                                    color = Color(0xFF2DD4BF),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
                                             color = Color(0xFF2B2930),
@@ -1798,6 +1899,161 @@ fun StudioScreen(
                         coroutineScope.launch {
                             viewModel.userSettingsDataStore.updateHasSeenOnboarding(true)
                         }
+                    }
+                }
+            )
+        }
+
+        // Gemini AI Audio Denoising & Acoustic Enhancement Dialog
+        if (state.showDenoiseDialog) {
+            AlertDialog(
+                onDismissRequest = { viewModel.setDenoiseDialogVisible(false) },
+                containerColor = Color(0xFF1E1B2E),
+                icon = {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF0F766E).copy(alpha = 0.25f),
+                        modifier = Modifier.size(54.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color(0xFF2DD4BF),
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    }
+                },
+                title = {
+                    Text(
+                        text = "معالجة وإزالة الضوضاء بـ Gemini AI ✨",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (state.isDenoisingAudio) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                LinearProgressIndicator(
+                                    progress = state.denoiseProgress,
+                                    color = Color(0xFF2DD4BF),
+                                    trackColor = Color(0xFF374151),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                )
+                                Text(
+                                    text = state.denoiseStatusText,
+                                    color = Color(0xFF99F6E4),
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            val res = state.lastDenoiseResult
+                            if (res != null && res.isSuccess) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF134E4A).copy(alpha = 0.35f),
+                                    border = BorderStroke(1.dp, Color(0xFF2DD4BF)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "نسبة عزل الضوضاء:",
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFCCFBF1)
+                                            )
+                                            Text(
+                                                text = "${res.noiseReductionPercent}% 🟢",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF5EEAD4)
+                                            )
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "مؤشر نقاء الصوت:",
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFCCFBF1)
+                                            )
+                                            Text(
+                                                text = "${(res.speechClarityScore * 100).toInt()}% 💎",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF99F6E4)
+                                            )
+                                        }
+
+                                        Text(
+                                            text = res.enhancementSummary,
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFFE2E8F0),
+                                            lineHeight = 16.sp
+                                        )
+
+                                        if (res.detectedIssues.isNotEmpty()) {
+                                            Text(
+                                                text = "العناصر المعالجة: " + res.detectedIssues.joinToString("، "),
+                                                fontSize = 10.5.sp,
+                                                color = Color(0xFFA7F3D0)
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "يقوم الذكاء الاصطناعي Gemini بتحليل الترددات الصوتية، وعزل صوت المكيف والمروحة ونقرات الفم، وإبراز نبرة الصوت البشري تلقائياً.",
+                                    color = Color(0xFFCBD5E1),
+                                    fontSize = 12.sp,
+                                    lineHeight = 17.sp
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (!state.isDenoisingAudio) {
+                        Button(
+                            onClick = {
+                                viewModel.enhanceRecordedAudioWithGemini()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("معالجة الصوت مجدداً ⚡", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.setDenoiseDialogVisible(false) }) {
+                        Text("إغلاق", color = Color(0xFF94A3B8), fontSize = 12.sp)
                     }
                 }
             )
