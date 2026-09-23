@@ -1,12 +1,26 @@
+/**
+ * تطبيق فويس ماستر برو | VoiceMaster Pro
+ * استوديو الدبلجة وهندسة الصوت بالذكاء الاصطناعي
+ * 
+ * المالك والمبتكر وصاحب كافة حقوق النشر والملكية الفكرية:
+ * محمد رضا محمود محمود السيد سليمة
+ * مصر - محافظة المنوفية - مركز شبين الكوم - شارع القفاص
+ * جميع الحقوق محفوظة © 2026
+ */
 package com.example.ui
 
 import android.app.Application
 import android.content.Intent
+import android.media.MediaPlayer
 import android.net.Uri
+import java.text.SimpleDateFormat
+import java.util.Date
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import com.example.audio.AudioDubbingManager
+import com.example.audio.AudioDubbingState
 import com.example.audio.AudioEffectItem
 import com.example.audio.AudioEffectParameters
 import com.example.audio.AudioEffectsLibrary
@@ -24,12 +38,22 @@ import com.example.audio.DubbingDialect
 import com.example.audio.DubbingPacing
 import com.example.audio.DubbingTargetLanguage
 import com.example.audio.GeminiAiScriptGenerator
+import com.example.audio.gemini.GeminiOneClickDubber
+import com.example.audio.gemini.GeminiVideoAudioTranscriptionService
+import com.example.audio.gemini.VideoAudioTranscriptionResult
+import com.example.audio.gemini.VideoAudioTranscriptionSegment
+import com.example.audio.GeminiVideoToAudioDubbingService
+import com.example.audio.ImportedVideoMetadata
+import com.example.audio.LocalizedDubbingCue
+import com.example.audio.VideoDubbingSynthesisAnalysis
 import com.example.audio.InstantDubbingConfig
 import com.example.audio.InstantDubbingEngine
 import com.example.audio.InstantDubbingMode
 import com.example.audio.NormalizationMode
 import com.example.audio.SoundEffectsGenerator
 import com.example.audio.TextToSpeechManager
+import com.example.audio.TtsEngineState
+import com.example.audio.TtsStatusInfo
 import com.example.audio.TrackLoudnessProfile
 import com.example.audio.VoiceEffect
 import com.example.audio.VoiceGenderDetector
@@ -51,7 +75,15 @@ import com.example.audio.tts.CloudVoiceInfo
 import com.example.data.AppDatabase
 import com.example.data.DubbingProject
 import com.example.data.DubbingRepository
+import com.example.data.VoiceRecordingEntity
 import com.example.model.DubbingClip
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.util.Log
+import com.example.audio.stt.SpeechToTextManager
+import com.example.audio.stt.SttState
+import com.example.ai.GeminiUnifiedClient
 import com.example.model.SampleClipsRepository
 import com.example.ui.components.VoicePresetType
 import com.example.model.ScriptLine
@@ -60,6 +92,8 @@ import com.example.export.ExportResult
 import com.example.export.MediaExportManager
 import com.example.export.VideoExportConfig
 import com.example.ui.components.ExportDialogUiState
+import com.example.ai.FirebaseAuthAndFirestoreService
+import com.example.security.FirebaseAuthSecurityManager
 import com.example.update.AppUpdateManager
 import com.example.update.server.AppUpdateWebServer
 import com.example.update.model.AppRelease
@@ -74,15 +108,30 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
+import java.util.Locale
 
 enum class SplitCompareViewMode {
     SIDE_BY_SIDE, // Dual screens: Original left vs Dubbed right
     SPLIT_SLIDER, // Interactive drag wipe comparison divider
     AB_FLIP       // Fast 1-tap toggle between Original & Dubbed
 }
+
+data class LocalizedDubbingCuesUiState(
+    val isLoading: Boolean = false,
+    val analysisResult: VideoDubbingSynthesisAnalysis? = null,
+    val cues: List<LocalizedDubbingCue> = emptyList(),
+    val currentlyPlayingCueId: String? = null,
+    val isPlayingAll: Boolean = false,
+    val errorMessage: String? = null,
+    val searchQuery: String = "",
+    val selectedGenderFilter: String? = null, // null = all, "male", "female", "child", "narrator"
+    val synthesizedCount: Int = 0
+)
 
 data class StudioUiState(
     val currentClip: DubbingClip = SampleClipsRepository.clips.first(),
@@ -114,6 +163,8 @@ data class StudioUiState(
     val toastMessage: String? = null,
     val isGeneratingAiDub: Boolean = false,
     val syncOffsetMs: Long = 0L,
+    val postProcessingPitch: Float = 1.0f,
+    val postProcessingSpeed: Float = 1.0f,
 
     // Realtime Voice Gender Recognition & Instant Dubbing State
     val autoVoiceRecognitionEnabled: Boolean = true,
@@ -177,7 +228,30 @@ data class StudioUiState(
     val syncPlaybackSpeed: Float = 1.0f,
     val syncWaveformGain: Float = 1.2f,
     val isSyncLocked: Boolean = true,
-    val syncMarkerSeconds: List<Float> = emptyList()
+    val syncMarkerSeconds: List<Float> = emptyList(),
+
+    // 3-Step Dubbing Pipeline State (STT -> Gemini Translation -> TTS Sync)
+    val isSttListening: Boolean = false,
+    val sttTranscribedText: String = "",
+    val isGeminiTranslating: Boolean = false,
+    val targetTranslationLanguage: String = "العربية",
+    val isTtsSynthesizingTimeline: Boolean = false,
+    val synthesizedDubbedAudioPath: String? = null
+)
+
+data class VideoSpeechToTextUiState(
+    val isTranscribing: Boolean = false,
+    val progressFraction: Float = 0f,
+    val statusMessage: String = "",
+    val result: VideoAudioTranscriptionResult? = null,
+    val segments: List<VideoAudioTranscriptionSegment> = emptyList(),
+    val selectedSegmentId: String? = null,
+    val searchQuery: String = "",
+    val speakerFilter: String? = null,
+    val isPlayingSegmentAudio: Boolean = false,
+    val currentlyPlayingSegmentId: String? = null,
+    val selectedDialect: DubbingDialect = DubbingDialect.MODERN_STANDARD_CLASSIC,
+    val errorMessage: String? = null
 )
 
 class DubbingViewModel(application: Application) : AndroidViewModel(application) {
@@ -185,6 +259,16 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     private val repository: DubbingRepository
     val recordingManager = AudioRecordingManager(application)
     val ttsManager = TextToSpeechManager(application)
+    val ttsStatusInfo: StateFlow<TtsStatusInfo> = ttsManager.initState
+    val isTtsReady: StateFlow<Boolean> = ttsManager.isInitialized
+
+    fun retryTtsInitialization() {
+        ttsManager.retryInit()
+        _uiState.value = _uiState.value.copy(
+            toastMessage = "جاري إعادة تهيئة محرك تحويل النص إلى كلام (TTS)... 🔄"
+        )
+    }
+
     val cloudTtsPrefs = CloudTtsPreferences(application)
     val cloudTtsService = CloudTtsService(application)
     val genderDetector = VoiceGenderDetector()
@@ -199,6 +283,79 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     val longFormDubbingWorker = LongFormDubbingWorker(application, ttsManager, cloudTtsService, cloudTtsPrefs, autoVideoDubber)
     val updateManager = AppUpdateManager(application)
     val updateWebServer = AppUpdateWebServer(application, updateManager, port = 8080)
+    val authSecurityManager = FirebaseAuthSecurityManager(application)
+    val authService = FirebaseAuthAndFirestoreService(application)
+    val securityAuditDiagnosticManager = com.example.security.SecurityAuditDiagnosticManager(application)
+    val audioDubbingManager = AudioDubbingManager(application, ttsManager, cloudTtsService, cloudTtsPrefs)
+    val geminiOneClickDubber = GeminiOneClickDubber(application, ttsManager)
+    val sttManager = SpeechToTextManager(application)
+    val geminiUnifiedClient = GeminiUnifiedClient(application)
+    val youTubeAutoDubberEngine = com.example.audio.youtube.YouTubeAutoDubberEngine(application, ttsManager, geminiUnifiedClient)
+    val vattDubbingEngine = com.example.audio.vatt.VattDubbingEngine(application, ttsManager, cloudTtsService, exportManager)
+    val vattState: StateFlow<com.example.audio.vatt.VattDubbingEngine.VattState> = vattDubbingEngine.vattState
+
+    // Offline Clean Architecture Assets & ExoPlayer Services
+    val audioAssetsRepository: com.example.audio.assets.domain.repository.AudioAssetsRepository =
+        com.example.audio.assets.data.repository.AudioAssetsRepositoryImpl(application)
+    val assetAudioPlayerService: com.example.audio.assets.domain.service.AssetAudioPlayerService =
+        com.example.audio.assets.data.service.AssetExoAudioPlayerService(application, audioAssetsRepository)
+    val offlineTtsService: com.example.audio.assets.domain.service.OfflineTtsService =
+        com.example.audio.assets.data.service.OfflineTtsServiceImpl(application)
+    val offlineSttService: com.example.audio.assets.domain.service.OfflineSttService =
+        com.example.audio.assets.data.service.OfflineSttServiceImpl(application)
+
+    // Local & Remote Python Lingo Dubbing Server Networking
+    val lingoRetrofitManager = com.example.network.RetrofitClientManager()
+    val lingoConnectionManager = com.example.network.ConnectionManager(application, lingoRetrofitManager, viewModelScope)
+    val lingoWebSocketClient = com.example.network.LingoWebSocketClient()
+
+    fun executeVattAutoDubbing(videoUri: Uri, videoTitle: String, durationSec: Int, lines: List<ScriptLine>? = null) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                toastMessage = "بدء تشغيل محرك VATT لدبلجة الفيديو واستخراج الترجمة... 🚀"
+            )
+            val result = vattDubbingEngine.executeVattPipeline(
+                videoUri = videoUri,
+                videoTitle = videoTitle,
+                videoDurationSec = durationSec,
+                targetLanguage = autoVideoDubber.state.value.selectedLanguage,
+                dialect = autoVideoDubber.state.value.selectedDialect,
+                existingLines = lines ?: _uiState.value.scriptLines
+            )
+            if (result.isSuccess) {
+                _uiState.value = _uiState.value.copy(
+                    toastMessage = "تم الانتهاء من دبلجة وترجمة VATT وتوليد ملفات SRT و WebVTT بنجاح ✨"
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    toastMessage = result.message
+                )
+            }
+        }
+    }
+
+    fun importYouTubeSegmentsToStudio(segments: List<com.example.audio.youtube.YouTubeDubSegment>) {
+        val newLines = segments.map { seg ->
+            ScriptLine(
+                id = "yt_line_${seg.index}_${System.currentTimeMillis()}",
+                characterName = "متحدث يوتيوب #${seg.index}",
+                characterAvatar = "🔴",
+                textArabic = seg.translatedText.ifBlank { seg.sourceText },
+                textOriginal = seg.sourceText,
+                startSeconds = seg.startSeconds,
+                endSeconds = seg.endSeconds,
+                voiceType = "ARABIC_MALE",
+                isDubbed = seg.audioPath != null,
+                customAudioPath = seg.audioPath,
+                speakerGender = "MALE",
+                genderConfidence = 95
+            )
+        }
+        _uiState.value = _uiState.value.copy(
+            scriptLines = newLines,
+            toastMessage = "تم نقل ${newLines.size} مقطع حوار من يوتيوب إلى خط الزمن بنجاح 🎬"
+        )
+    }
 
     // Undo / Redo Manager for Trimming, Filters, Effects, and Audio Edits
     val undoRedoManager = UndoRedoStackManager(maxStackSize = 35)
@@ -293,6 +450,13 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         return nextState
     }
 
+    fun applyDubbedAudioToProject(dubbedAudioPath: String) {
+        _uiState.value = _uiState.value.copy(
+            recordedAudioPath = dubbedAudioPath,
+            toastMessage = "تم تعيين الصوت المدبلج كمسار صوتي نشط للمشروع 🎙️"
+        )
+    }
+
     private val _cloudTtsConfig = MutableStateFlow(cloudTtsPrefs.loadConfig())
     val cloudTtsConfig: StateFlow<CloudTtsConfig> = _cloudTtsConfig.asStateFlow()
 
@@ -306,13 +470,30 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     private val _videoExportConfig = MutableStateFlow(VideoExportConfig())
     val videoExportConfig: StateFlow<VideoExportConfig> = _videoExportConfig.asStateFlow()
 
+    val userSettingsDataStore = com.example.data.UserSettingsDataStore(application)
+
     private val themePrefs = application.getSharedPreferences("app_theme_prefs", android.content.Context.MODE_PRIVATE)
     private val _isDarkMode = MutableStateFlow(themePrefs.getBoolean("is_dark_mode", true))
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
 
+    private val langPrefs = application.getSharedPreferences("app_lang_prefs", android.content.Context.MODE_PRIVATE)
+    private val _currentAppLanguage = MutableStateFlow(
+        com.example.localization.AppLanguage.fromCode(langPrefs.getString("app_language_code", "ar") ?: "ar")
+    )
+    val currentAppLanguage: StateFlow<com.example.localization.AppLanguage> = _currentAppLanguage.asStateFlow()
+
+    val userSettings: StateFlow<com.example.data.UserSettings> = userSettingsDataStore.userSettingsFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = com.example.data.UserSettings(
+            languageCode = langPrefs.getString("app_language_code", "ar") ?: "ar",
+            isDarkMode = themePrefs.getBoolean("is_dark_mode", true)
+        )
+    )
+
     private val aiPrefs = application.getSharedPreferences("app_ai_prefs", android.content.Context.MODE_PRIVATE)
     private val _geminiApiKey = MutableStateFlow(
-        aiPrefs.getString("gemini_api_key", "AQ.Ab8RN6KgYBCKjgE9alN3jLNuL5Wm1qx-U9BIu6DioS1zBQNezw") ?: "AQ.Ab8RN6KgYBCKjgE9alN3jLNuL5Wm1qx-U9BIu6DioS1zBQNezw"
+        geminiOneClickDubber.resolveEffectiveApiKey()
     )
     val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
 
@@ -329,18 +510,133 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
-    private val langPrefs = application.getSharedPreferences("app_lang_prefs", android.content.Context.MODE_PRIVATE)
-    private val _currentAppLanguage = MutableStateFlow(
-        com.example.localization.AppLanguage.fromCode(langPrefs.getString("app_language_code", "ar") ?: "ar")
-    )
-    val currentAppLanguage: StateFlow<com.example.localization.AppLanguage> = _currentAppLanguage.asStateFlow()
-
     fun setAppLanguage(lang: com.example.localization.AppLanguage) {
         _currentAppLanguage.value = lang
         langPrefs.edit().putString("app_language_code", lang.code).apply()
+        viewModelScope.launch {
+            userSettingsDataStore.updateLanguage(lang.code)
+        }
         _uiState.value = _uiState.value.copy(
-            toastMessage = "${lang.flagEmoji} تم تغيير لغة الواجهة إلى ${lang.displayName}"
+            toastMessage = "${lang.flagEmoji} تم حفظ لغة الواجهة عبر DataStore: ${lang.displayName}"
         )
+    }
+
+    fun updateSpeechRate(rate: Float) {
+        viewModelScope.launch {
+            userSettingsDataStore.updateSpeechRate(rate)
+        }
+        _uiState.value = _uiState.value.copy(
+            toastMessage = "تم حفظ سرعة الصوت الافتراضية محلياً عبر DataStore: ${String.format("%.2f", rate)}x ⚡"
+        )
+    }
+
+    fun updateVoicePitch(pitch: Float) {
+        viewModelScope.launch {
+            userSettingsDataStore.updateVoicePitch(pitch)
+        }
+        _uiState.value = _uiState.value.copy(
+            toastMessage = "تم حفظ نبرة الصوت الافتراضية محلياً عبر DataStore: ${String.format("%.2f", pitch)}x 🎚️"
+        )
+    }
+
+    fun updateServerConfiguration(ip: String, port: Int) {
+        viewModelScope.launch {
+            userSettingsDataStore.updateServerConfiguration(ip, port)
+            lingoConnectionManager.updateTarget(ip, port)
+            _uiState.value = _uiState.value.copy(
+                toastMessage = "تم حفظ إعدادات السيرفر عبر DataStore: $ip:$port ⚡"
+            )
+        }
+    }
+
+    fun testLingoServerConnection() {
+        val settings = userSettings.value
+        lingoConnectionManager.updateTarget(settings.serverIp, settings.serverPort)
+    }
+
+    fun sendAudioToLingoServer(
+        audioUri: Uri,
+        targetLanguage: String = "Arabic",
+        dialect: String = "Modern Standard Arabic",
+        speed: Float = 1.0f,
+        onSuccess: (String) -> Unit = {},
+        onError: (String, String) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch {
+            val settings = userSettings.value
+            val ip = settings.serverIp
+            val port = settings.serverPort
+
+            lingoConnectionManager.updateProcessingStatus("تحضير الملف وتحويله إلى Multipart...", 0.15f)
+
+            val cachedFile = com.example.network.AudioMultipartHelper.uriToCacheFile(getApplication(), audioUri)
+            if (cachedFile == null || !cachedFile.exists()) {
+                lingoConnectionManager.restoreConnectedState()
+                onError(
+                    "تعذر قراءة الملف الصوتي المختار",
+                    "تأكد من اختيار ملف صوتي صالح (MP3, WAV, M4A) وإعطاء التطبيق الصلاحيات اللازمة."
+                )
+                return@launch
+            }
+
+            try {
+                lingoConnectionManager.updateProcessingStatus("إرسال ملف الصوت عبر الشبكة إلى $ip:$port...", 0.40f)
+
+                val audioPart = com.example.network.AudioMultipartHelper.createAudioMultipartPart(cachedFile)
+                val targetLangPart = com.example.network.AudioMultipartHelper.createTextRequestBody(targetLanguage)
+                val dialectPart = com.example.network.AudioMultipartHelper.createTextRequestBody(dialect)
+                val speedPart = com.example.network.AudioMultipartHelper.createTextRequestBody(speed.toString())
+                val preserveBgPart = com.example.network.AudioMultipartHelper.createTextRequestBody("true")
+
+                val api = lingoRetrofitManager.getApiService(ip, port)
+                val response = api.uploadAudioForDubbing(
+                    audioFile = audioPart,
+                    targetLanguage = targetLangPart,
+                    dialect = dialectPart,
+                    sourceLanguage = null,
+                    speed = speedPart,
+                    preserveBackground = preserveBgPart
+                )
+
+                if (response.isSuccessful && response.body() != null) {
+                    val body = response.body()!!
+                    val jobId = body.jobId.ifBlank { "job_${System.currentTimeMillis()}" }
+                    lingoConnectionManager.updateProcessingStatus("جاري المعالجة والدبلجة بمكتبة Lingo على كارت الشاشة...", 0.80f)
+                    delay(1200)
+                    lingoConnectionManager.restoreConnectedState()
+                    onSuccess("تم إرسال ومعالجة الصوت بنجاح بواسطة سيرفر Lingo! معرّف المهمة: $jobId")
+                } else {
+                    val code = response.code()
+                    val err = "استجاب السيرفر برمز خطأ ($code)"
+                    val troubleshooting = "تأكد من أن سكريبت Lingo على الكمبيوتر يدعم نقطة النهاية /api/dub/audio وأن مكتبات Whisper و PyTorch مثبتة بالكامل."
+                    lingoConnectionManager.restoreConnectedState()
+                    onError(err, troubleshooting)
+                }
+            } catch (e: Exception) {
+                lingoConnectionManager.restoreConnectedState()
+                val errMsg = e.localizedMessage ?: "فشل الاتصال بسيرفر البايثون"
+                val troubleshooting = buildString {
+                    append("تعذر إرسال الملف إلى سيرفر البايثون على $ip:$port.\n")
+                    append("1. تأكد من اتصال هاتفك بنفس شبكة الواي فاي للكمبيوتر.\n")
+                    append("2. تأكد من عمل السيرفر في وضع الاستماع (0.0.0.0:$port).\n")
+                    append("3. افحص جدار حماية الويندوز (Windows Firewall).")
+                }
+                onError(errMsg, troubleshooting)
+            }
+        }
+    }
+
+    fun resetUserSettings() {
+        viewModelScope.launch {
+            userSettingsDataStore.resetToDefaults()
+            _isDarkMode.value = true
+            _currentAppLanguage.value = com.example.localization.AppLanguage.ARABIC
+            themePrefs.edit().putBoolean("is_dark_mode", true).apply()
+            langPrefs.edit().putString("app_language_code", "ar").apply()
+            _uiState.value = _uiState.value.copy(
+                toastMessage = "تمت استعادة كافة إعدادات DataStore الافتراضية بنجاح 🔄"
+            )
+        }
     }
 
     fun clearAudioCache() {
@@ -368,6 +664,496 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // ==========================================
+    // Gemini Video-to-Audio Localized Cues Engine
+    // ==========================================
+    val geminiVideoDubbingService = GeminiVideoToAudioDubbingService(application, ttsManager)
+
+    private val _localizedCuesState = MutableStateFlow(
+        LocalizedDubbingCuesUiState(
+            analysisResult = null,
+            cues = emptyList()
+        )
+    )
+    val localizedCuesState: StateFlow<LocalizedDubbingCuesUiState> = _localizedCuesState.asStateFlow()
+
+    private var playAllCuesJob: Job? = null
+
+    fun playCueAudio(cue: LocalizedDubbingCue) {
+        if (_localizedCuesState.value.currentlyPlayingCueId == cue.id) {
+            stopCueAudio()
+            return
+        }
+        stopCueAudio()
+        _localizedCuesState.value = _localizedCuesState.value.copy(
+            currentlyPlayingCueId = cue.id,
+            isPlayingAll = false
+        )
+        geminiVideoDubbingService.playCueAudio(cue) {
+            if (_localizedCuesState.value.currentlyPlayingCueId == cue.id) {
+                _localizedCuesState.value = _localizedCuesState.value.copy(currentlyPlayingCueId = null)
+            }
+        }
+    }
+
+    fun stopCueAudio() {
+        playAllCuesJob?.cancel()
+        playAllCuesJob = null
+        geminiVideoDubbingService.stopCueAudio()
+        _localizedCuesState.value = _localizedCuesState.value.copy(
+            currentlyPlayingCueId = null,
+            isPlayingAll = false
+        )
+    }
+
+    fun playAllCues() {
+        if (_localizedCuesState.value.isPlayingAll) {
+            stopCueAudio()
+            return
+        }
+        val currentCues = _localizedCuesState.value.cues
+        if (currentCues.isEmpty()) return
+
+        stopCueAudio()
+        _localizedCuesState.value = _localizedCuesState.value.copy(isPlayingAll = true)
+
+        playAllCuesJob = viewModelScope.launch {
+            for (cue in currentCues) {
+                if (!_localizedCuesState.value.isPlayingAll) break
+                _localizedCuesState.value = _localizedCuesState.value.copy(currentlyPlayingCueId = cue.id)
+                geminiVideoDubbingService.playCueAudio(cue)
+                val durationMs = ((cue.durationSeconds * 1000L).toLong() + 600L).coerceAtLeast(1800L)
+                delay(durationMs)
+            }
+            _localizedCuesState.value = _localizedCuesState.value.copy(
+                currentlyPlayingCueId = null,
+                isPlayingAll = false
+            )
+        }
+    }
+
+    fun synthesizeCueToFile(cue: LocalizedDubbingCue) {
+        viewModelScope.launch {
+            geminiVideoDubbingService.synthesizeCueAudio(cue) { filePath ->
+                if (filePath != null) {
+                    val updatedCues = _localizedCuesState.value.cues.map {
+                        if (it.id == cue.id) it.copy(generatedAudioPath = filePath) else it
+                    }
+                    _localizedCuesState.value = _localizedCuesState.value.copy(
+                        cues = updatedCues,
+                        synthesizedCount = updatedCues.count { it.generatedAudioPath != null }
+                    )
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "تم توليد وحفظ المقطع الصوتي بنجاح! 🎙️💾"
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateCueScript(cueId: String, newScript: String) {
+        val updated = _localizedCuesState.value.cues.map {
+            if (it.id == cueId) it.copy(localizedDubbedScript = newScript) else it
+        }
+        _localizedCuesState.value = _localizedCuesState.value.copy(cues = updated)
+    }
+
+    fun loadSampleDubbingCues() {
+        val sample = geminiVideoDubbingService.generateSampleDubbingAnalysis()
+        _localizedCuesState.value = _localizedCuesState.value.copy(
+            analysisResult = sample,
+            cues = sample.dubbingCues,
+            currentlyPlayingCueId = null,
+            isPlayingAll = false,
+            errorMessage = null
+        )
+    }
+
+    fun analyzeVideoForCues(videoUri: Uri, targetDialect: DubbingDialect = DubbingDialect.MODERN_STANDARD_CLASSIC) {
+        viewModelScope.launch {
+            _localizedCuesState.value = _localizedCuesState.value.copy(
+                isLoading = true,
+                errorMessage = null
+            )
+            val result = geminiVideoDubbingService.analyzeAndSynthesizeDubbing(
+                videoUri = videoUri,
+                targetDialect = targetDialect,
+                explicitApiKey = _geminiApiKey.value
+            )
+            result.onSuccess { analysis ->
+                _localizedCuesState.value = _localizedCuesState.value.copy(
+                    isLoading = false,
+                    analysisResult = analysis,
+                    cues = analysis.dubbingCues
+                )
+            }.onFailure { err ->
+                _localizedCuesState.value = _localizedCuesState.value.copy(
+                    isLoading = false,
+                    errorMessage = err.message ?: "تعذر تحليل الفيديو بواسطة خدمة Gemini"
+                )
+            }
+        }
+    }
+
+    fun analyzeVideoForCues(video: ImportedVideoMetadata) {
+        val uri = Uri.parse(video.uriString)
+        analyzeVideoForCues(uri)
+    }
+
+    fun filterCuesByGender(gender: String?) {
+        _localizedCuesState.value = _localizedCuesState.value.copy(selectedGenderFilter = gender)
+    }
+
+    fun searchCues(query: String) {
+        _localizedCuesState.value = _localizedCuesState.value.copy(searchQuery = query)
+    }
+
+    fun applyCueToStudio(cue: LocalizedDubbingCue) {
+        val path = cue.generatedAudioPath
+        if (path != null && File(path).exists()) {
+            _uiState.value = _uiState.value.copy(
+                recordedAudioPath = path,
+                toastMessage = "تم نقل صوت المقطع '${cue.characterSpeakerName}' إلى الاستوديو! 🎬✨"
+            )
+        } else {
+            synthesizeCueToFile(cue)
+            _uiState.value = _uiState.value.copy(
+                toastMessage = "جاري توليد ملف الصوت لنقله للاستوديو... 🎙️"
+            )
+        }
+    }
+
+    // ==============================================================
+    // 🎙️ Speech-to-Text (STT) & Video Timestamps Engine
+    // ==============================================================
+    val geminiTranscriptionService = GeminiVideoAudioTranscriptionService(application)
+
+    private val _videoSpeechToTextState = MutableStateFlow(VideoSpeechToTextUiState())
+    val videoSpeechToTextState: StateFlow<VideoSpeechToTextUiState> = _videoSpeechToTextState.asStateFlow()
+
+    fun transcribeVideoForTimestamps(
+        videoUri: Uri? = null,
+        targetDialect: DubbingDialect = _videoSpeechToTextState.value.selectedDialect,
+        customPromptContext: String = ""
+    ) {
+        viewModelScope.launch {
+            try {
+                _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+                    isTranscribing = true,
+                    progressFraction = 0.15f,
+                    statusMessage = "جاري تهيئة ملف الفيديو واستخراج مسار الصوت...",
+                    selectedDialect = targetDialect,
+                    errorMessage = null
+                )
+
+                val context = getApplication<Application>()
+                val videoFile = withContext(Dispatchers.IO) {
+                    val localPath = autoDubberState.value.importedVideo?.localFilePath
+                    if (localPath != null && File(localPath).exists() && File(localPath).length() > 500) {
+                        File(localPath)
+                    } else if (videoUri != null) {
+                        val cacheFile = File(context.cacheDir, "stt_input_${System.currentTimeMillis()}.mp4")
+                        context.contentResolver.openInputStream(videoUri)?.use { input ->
+                            FileOutputStream(cacheFile).use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        if (cacheFile.exists() && cacheFile.length() > 500) cacheFile else null
+                    } else {
+                        null
+                    }
+                }
+
+                _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+                    progressFraction = 0.50f,
+                    statusMessage = "جاري تفريغ الصوت وتحليل توقيتات الكلام بالذكاء الاصطناعي..."
+                )
+
+                val result = geminiTranscriptionService.transcribeVideoAudio(
+                    videoFile = videoFile,
+                    targetDialect = targetDialect,
+                    customApiKey = _geminiApiKey.value,
+                    customPromptContext = customPromptContext
+                )
+
+                _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+                    isTranscribing = false,
+                    progressFraction = 1.0f,
+                    statusMessage = "اكتمل تفريغ ${result.segments.size} مقطع كلامي مع التوقيتات!",
+                    result = result,
+                    segments = result.segments,
+                    selectedSegmentId = result.segments.firstOrNull()?.id
+                )
+
+                if (result.segments.isNotEmpty()) {
+                    val convertedLines = result.segments.mapIndexed { idx, seg ->
+                        ScriptLine(
+                            id = "transcribed_line_${idx}_${System.currentTimeMillis()}",
+                            characterName = seg.speaker,
+                            characterAvatar = if (seg.speakerGender == "FEMALE") "👩" else if (seg.speakerGender == "CHILD") "🧒" else "🎙️",
+                            textArabic = seg.arabicDubbedAdaptation.ifBlank { seg.originalSpeech },
+                            startSeconds = seg.startSeconds,
+                            endSeconds = seg.endSeconds
+                        )
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        scriptLines = convertedLines,
+                        toastMessage = "تم تفريغ وحساب توقيتات ${result.segments.size} مقطع كلامي حقيقي بنجاح! 🎙️⏱️"
+                    )
+                } else if (!result.errorMessage.isNullOrBlank()) {
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = result.errorMessage
+                    )
+                }
+            } catch (e: Exception) {
+                _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+                    isTranscribing = false,
+                    errorMessage = e.message ?: "تعذر استخراج كلام الفيديو"
+                )
+                _uiState.value = _uiState.value.copy(
+                    toastMessage = "خطأ في تفريغ الكلام: ${e.message ?: "خطأ غير معروف"}"
+                )
+            }
+        }
+    }
+
+    fun loadSampleSpeechToText() {
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+            isTranscribing = false,
+            progressFraction = 1f,
+            statusMessage = "يرجى استيراد فيديو للتعرف الصوتي الحقيقي بدون نصوص وهمية",
+            errorMessage = null
+        )
+    }
+
+    fun seekToSpeechSegment(segment: VideoAudioTranscriptionSegment) {
+        seekTo(segment.startSeconds)
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+            selectedSegmentId = segment.id
+        )
+    }
+
+    fun playSpeechSegmentAudio(segment: VideoAudioTranscriptionSegment) {
+        if (_videoSpeechToTextState.value.currentlyPlayingSegmentId == segment.id) {
+            stopSpeechSegmentAudio()
+            return
+        }
+        val textToSpeak = segment.arabicDubbedAdaptation.ifBlank { segment.originalSpeech }
+        ttsManager.speakText(
+            text = textToSpeak,
+            languageCode = "ar",
+            onDone = {
+                _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+                    currentlyPlayingSegmentId = null
+                )
+            }
+        )
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+            currentlyPlayingSegmentId = segment.id
+        )
+    }
+
+    fun stopSpeechSegmentAudio() {
+        ttsManager.stop()
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
+            currentlyPlayingSegmentId = null
+        )
+    }
+
+    fun updateSpeechSegment(updatedSegment: VideoAudioTranscriptionSegment) {
+        val updatedList = _videoSpeechToTextState.value.segments.map {
+            if (it.id == updatedSegment.id) updatedSegment else it
+        }.sortedBy { it.startSeconds }
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(segments = updatedList)
+    }
+
+    fun deleteSpeechSegment(segmentId: String) {
+        val updatedList = _videoSpeechToTextState.value.segments.filter { it.id != segmentId }
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(segments = updatedList)
+    }
+
+    fun addManualSpeechSegment(
+        startSec: Float,
+        endSec: Float,
+        speaker: String,
+        gender: String,
+        originalText: String,
+        arabicText: String
+    ) {
+        val newSegment = VideoAudioTranscriptionSegment(
+            startSeconds = startSec,
+            endSeconds = endSec,
+            speaker = speaker,
+            speakerGender = gender,
+            originalSpeech = originalText,
+            arabicDubbedAdaptation = arabicText,
+            isEditedByUser = true
+        )
+        val updatedList = (_videoSpeechToTextState.value.segments + newSegment).sortedBy { it.startSeconds }
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(segments = updatedList)
+    }
+
+    fun addSingleSpeechSegmentToStudio(segment: VideoAudioTranscriptionSegment) {
+        val gender = when (segment.speakerGender) {
+            "FEMALE" -> "FEMALE"
+            "CHILD" -> "CHILD"
+            else -> "MALE"
+        }
+        val avatar = when (gender) {
+            "FEMALE" -> "👩"
+            "CHILD" -> "🧒"
+            else -> "👨"
+        }
+        val newLine = ScriptLine(
+            id = segment.id,
+            characterName = segment.speaker,
+            characterAvatar = avatar,
+            textArabic = segment.arabicDubbedAdaptation.ifBlank { segment.originalSpeech },
+            textOriginal = segment.originalSpeech,
+            startSeconds = segment.startSeconds,
+            endSeconds = segment.endSeconds,
+            voiceType = if (gender == "FEMALE") "ARABIC_FEMALE" else "ARABIC_MALE",
+            speakerGender = gender
+        )
+        val currentLines = _uiState.value.scriptLines
+        val updatedLines = (currentLines + newLine).sortedBy { it.startSeconds }
+        _uiState.value = _uiState.value.copy(
+            scriptLines = updatedLines,
+            toastMessage = "تمت إضافة مقطع '${segment.speaker}' بالتوقيت إلى الاستوديو! 🎬"
+        )
+    }
+
+    fun applySpeechSegmentsToStudioTimeline(replaceExisting: Boolean = false) {
+        val segments = _videoSpeechToTextState.value.segments
+        if (segments.isEmpty()) return
+        val newLines = segments.map { seg ->
+            val gender = when (seg.speakerGender) {
+                "FEMALE" -> "FEMALE"
+                "CHILD" -> "CHILD"
+                else -> "MALE"
+            }
+            val avatar = when (gender) {
+                "FEMALE" -> "👩"
+                "CHILD" -> "🧒"
+                else -> "👨"
+            }
+            ScriptLine(
+                id = seg.id,
+                characterName = seg.speaker,
+                characterAvatar = avatar,
+                textArabic = seg.arabicDubbedAdaptation.ifBlank { seg.originalSpeech },
+                textOriginal = seg.originalSpeech,
+                startSeconds = seg.startSeconds,
+                endSeconds = seg.endSeconds,
+                voiceType = if (gender == "FEMALE") "ARABIC_FEMALE" else "ARABIC_MALE",
+                speakerGender = gender
+            )
+        }
+        val updatedLines = if (replaceExisting) {
+            newLines.sortedBy { it.startSeconds }
+        } else {
+            (_uiState.value.scriptLines + newLines).distinctBy { it.id }.sortedBy { it.startSeconds }
+        }
+        _uiState.value = _uiState.value.copy(
+            scriptLines = updatedLines,
+            toastMessage = "تم نقل ${segments.size} مقطع كلامي إلى خط زمن الاستوديو بالتوقيتات! 🎬⏱️"
+        )
+    }
+
+    fun exportTranscriptsAsSrtFile(): File? {
+        val segments = _videoSpeechToTextState.value.segments
+        if (segments.isEmpty()) return null
+        return try {
+            val srtFile = File(getApplication<Application>().cacheDir, "subtitles_${System.currentTimeMillis()}.srt")
+            srtFile.bufferedWriter().use { writer ->
+                segments.forEachIndexed { index, seg ->
+                    writer.write("${index + 1}\n")
+                    val startMs = (seg.startSeconds * 1000).toLong()
+                    val endMs = (seg.endSeconds * 1000).toLong()
+                    val startStr = formatSrtTimestamp(startMs)
+                    val endStr = formatSrtTimestamp(endMs)
+                    writer.write("$startStr --> $endStr\n")
+                    val text = seg.arabicDubbedAdaptation.ifBlank { seg.originalSpeech }
+                    writer.write("$text\n\n")
+                }
+            }
+            srtFile
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun exportTranscriptsAsVttFile(): File? {
+        val segments = _videoSpeechToTextState.value.segments
+        if (segments.isEmpty()) return null
+        return try {
+            val vttFile = File(getApplication<Application>().cacheDir, "subtitles_${System.currentTimeMillis()}.vtt")
+            vttFile.bufferedWriter().use { writer ->
+                writer.write("WEBVTT\n\n")
+                segments.forEachIndexed { index, seg ->
+                    writer.write("${index + 1}\n")
+                    val startMs = (seg.startSeconds * 1000).toLong()
+                    val endMs = (seg.endSeconds * 1000).toLong()
+                    val startStr = formatVttTimestamp(startMs)
+                    val endStr = formatVttTimestamp(endMs)
+                    writer.write("$startStr --> $endStr\n")
+                    val text = seg.arabicDubbedAdaptation.ifBlank { seg.originalSpeech }
+                    writer.write("$text\n\n")
+                }
+            }
+            vttFile
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun formatSrtTimestamp(millis: Long): String {
+        val h = millis / 3600000
+        val m = (millis % 3600000) / 60000
+        val s = (millis % 60000) / 1000
+        val ms = millis % 1000
+        return String.format(Locale.US, "%02d:%02d:%02d,%03d", h, m, s, ms)
+    }
+
+    private fun formatVttTimestamp(millis: Long): String {
+        val h = millis / 3600000
+        val m = (millis % 3600000) / 60000
+        val s = (millis % 60000) / 1000
+        val ms = millis % 1000
+        return String.format(Locale.US, "%02d:%02d:%02d.%03d", h, m, s, ms)
+    }
+
+    fun getFormattedTranscriptText(): String {
+        val segments = _videoSpeechToTextState.value.segments
+        if (segments.isEmpty()) return "لا توجد مقاطع كلام مفرغة حتى الآن."
+        val sb = StringBuilder()
+        sb.append("🎙️ تفريغ كلام الفيديو والتوقيتات:\n")
+        sb.append("====================================\n\n")
+        segments.forEachIndexed { index, seg ->
+            sb.append("${index + 1}. [${seg.formattedTimeRange}] (المدة: ${String.format(Locale.US, "%.1f", seg.durationSeconds)}ث) - ${seg.speaker}:\n")
+            if (seg.originalSpeech.isNotBlank()) {
+                sb.append("   • النص الأصلي: ${seg.originalSpeech}\n")
+            }
+            if (seg.arabicDubbedAdaptation.isNotBlank()) {
+                sb.append("   • الدبلجة العربية: ${seg.arabicDubbedAdaptation}\n")
+            }
+            sb.append("\n")
+        }
+        return sb.toString()
+    }
+
+    fun setSpeechToTextSearchQuery(query: String) {
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(searchQuery = query)
+    }
+
+    fun setSpeechToTextSpeakerFilter(speaker: String?) {
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(speakerFilter = speaker)
+    }
+
+    fun setSpeechToTextDialect(dialect: DubbingDialect) {
+        _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(selectedDialect = dialect)
+    }
+
     fun resetAllSettings() {
         viewModelScope.launch {
             themePrefs.edit().clear().apply()
@@ -390,14 +1176,20 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         val newMode = !_isDarkMode.value
         _isDarkMode.value = newMode
         themePrefs.edit().putBoolean("is_dark_mode", newMode).apply()
+        viewModelScope.launch {
+            userSettingsDataStore.updateDarkMode(newMode)
+        }
         _uiState.value = _uiState.value.copy(
-            toastMessage = if (newMode) "تم تفعيل الوضع الليلي للاستوديو 🌙" else "تم تفعيل الوضع النهاري ☀️"
+            toastMessage = if (newMode) "تم تفعيل وحفظ الوضع الليلي عبر DataStore 🌙" else "تم تفعيل وحفظ الوضع النهاري عبر DataStore ☀️"
         )
     }
 
     fun setDarkMode(enabled: Boolean) {
         _isDarkMode.value = enabled
         themePrefs.edit().putBoolean("is_dark_mode", enabled).apply()
+        viewModelScope.launch {
+            userSettingsDataStore.updateDarkMode(enabled)
+        }
     }
 
     private val _uiState = MutableStateFlow(StudioUiState())
@@ -415,21 +1207,41 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     private var trimmerPlaybackJob: Job? = null
 
     val allSavedProjects: StateFlow<List<DubbingProject>>
+    val allSavedRecordings: StateFlow<List<VoiceRecordingEntity>>
+
+    private var previewMediaPlayer: MediaPlayer? = null
+    private val _currentlyPlayingRecordingId = MutableStateFlow<Long?>(null)
+    val currentlyPlayingRecordingId: StateFlow<Long?> = _currentlyPlayingRecordingId.asStateFlow()
 
     init {
         val db = AppDatabase.getInstance(application)
-        repository = DubbingRepository(db.dubbingDao())
+        repository = DubbingRepository(db.dubbingDao(), db.voiceRecordingDao())
         allSavedProjects = repository.allProjects.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
-
-        // Automatically start the Web Update Server
-        updateWebServer.start()
+        allSavedRecordings = repository.allRecordings.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
         // Initialize with first clip
         loadClip(SampleClipsRepository.clips.first())
+
+        // Load & synchronize persistent user preferences from Jetpack DataStore
+        viewModelScope.launch {
+            userSettingsDataStore.userSettingsFlow.collect { settings ->
+                val lang = com.example.localization.AppLanguage.fromCode(settings.languageCode)
+                if (_currentAppLanguage.value != lang) {
+                    _currentAppLanguage.value = lang
+                }
+                if (_isDarkMode.value != settings.isDarkMode) {
+                    _isDarkMode.value = settings.isDarkMode
+                }
+            }
+        }
 
         // Collect mic amplitude & waveform history
         viewModelScope.launch {
@@ -516,7 +1328,10 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
             dubVolume = project.dubVolume,
             bgmVolume = project.bgmVolume,
             currentPlaybackSeconds = 0f,
-            activeLineIndex = -1
+            activeLineIndex = -1,
+            isPlaying = false,
+            isRecording = false,
+            toastMessage = "تم تحميل المشروع '${project.title}' بنجاح! يمكنك مواصلة التعديل والعمل 🎬📂"
         )
     }
 
@@ -713,6 +1528,30 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
             recordedAudioPath = finalPath,
             toastMessage = recognitionMsg
         )
+
+        // Automatically persist the recording into Room Database so it survives app restarts
+        if (finalPath != null && File(finalPath).exists()) {
+            val audioFile = File(finalPath)
+            val durationSec = if (_uiState.value.currentPlaybackSeconds > 0.5f) {
+                _uiState.value.currentPlaybackSeconds
+            } else {
+                (audioFile.length() / 32000f).coerceAtLeast(1.0f)
+            }
+            viewModelScope.launch {
+                val formattedTime = SimpleDateFormat("HH:mm - dd/MM", Locale.getDefault()).format(Date())
+                val newRecording = VoiceRecordingEntity(
+                    title = "تسجيل صوتي ($formattedTime)",
+                    filePath = finalPath,
+                    durationSeconds = durationSec,
+                    fileSizeBytes = audioFile.length(),
+                    voiceEffect = _uiState.value.selectedVoiceEffect.name,
+                    detectedGender = _uiState.value.lastDetectedGender.name,
+                    associatedScript = _uiState.value.scriptLines.getOrNull(_uiState.value.activeLineIndex)?.textArabic ?: "",
+                    timestamp = System.currentTimeMillis()
+                )
+                repository.saveVoiceRecording(newRecording)
+            }
+        }
     }
 
     fun setAutoVoiceRecognition(enabled: Boolean) {
@@ -741,10 +1580,20 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
 
     fun setInstantPitchShift(pitch: Float) {
         instantDubbingEngine.updatePitch(pitch)
+        _uiState.value = _uiState.value.copy(postProcessingPitch = pitch)
     }
 
     fun setInstantSpeed(speed: Float) {
         instantDubbingEngine.updateSpeed(speed)
+        _uiState.value = _uiState.value.copy(postProcessingSpeed = speed)
+    }
+
+    fun setPostProcessingPitch(pitch: Float) {
+        setInstantPitchShift(pitch)
+    }
+
+    fun setPostProcessingSpeed(speed: Float) {
+        setInstantSpeed(speed)
     }
 
     fun toggleLiveMonitoring() {
@@ -772,6 +1621,38 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
 
     fun setVoiceEffect(effect: VoiceEffect) {
         _uiState.value = _uiState.value.copy(selectedVoiceEffect = effect)
+    }
+
+    /**
+     * إلغاء التسجيل الجاري وحذف المقطع المسجل، وإلغاء كافة التأثيرات الصوتية والرجوع للصوت الطبيعي
+     */
+    fun cancelRecordingAndResetEffects() {
+        countdownJob?.cancel()
+        countdownJob = null
+        playbackJob?.cancel()
+        playbackJob = null
+        genderDetector.stopAnalysis()
+
+        try {
+            audioEffectsProcessor.stopPreview()
+        } catch (_: Exception) {}
+
+        try {
+            val path = recordingManager.stopRecording() ?: _uiState.value.recordedAudioPath
+            if (path != null) {
+                val f = File(path)
+                if (f.exists()) f.delete()
+            }
+        } catch (_: Exception) {}
+
+        _uiState.value = _uiState.value.copy(
+            isRecording = false,
+            isPlaying = false,
+            countdownNumber = 0,
+            recordedAudioPath = null,
+            selectedVoiceEffect = VoiceEffect.NORMAL,
+            toastMessage = "تم إلغاء التسجيل وتصفير جميع التأثيرات الصوتية إلى الوضع الطبيعي الأصلي 🔄"
+        )
     }
 
     fun setBgmStyle(style: BgmStyle) {
@@ -851,18 +1732,39 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
 
     fun synthesizeTextToDubbingTake(text: String, profile: VoiceProfile) {
         viewModelScope.launch {
+            if (!ttsManager.isEngineReady()) {
+                val ready = ttsManager.awaitInitialization(3000L)
+                if (!ready) {
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = if (ttsManager.initState.value.state == TtsEngineState.INITIALIZING)
+                            "محرك الصوت ما زال قيد التهيئة، يرجى المحاولة بعد لحظات... ⏳"
+                        else
+                            "محرك الصوت غير جاهز (${ttsManager.initState.value.errorMessage ?: "تأكد من إعدادات TTS"}) ⚠️"
+                    )
+                    return@launch
+                }
+            }
             _uiState.value = _uiState.value.copy(isGeneratingAiDub = true)
             ttsManager.synthesizeToFile(text, profile) { filePath ->
                 _uiState.value = _uiState.value.copy(
                     isGeneratingAiDub = false,
                     recordedAudioPath = filePath ?: _uiState.value.recordedAudioPath,
-                    toastMessage = if (filePath != null) "تم توليد الصوت وحفظه كملف دبلجة بنجاح! 🎙️✨" else "تم توليد الصوت بنجاح"
+                    toastMessage = if (filePath != null) "تم توليد الصوت وحفظه كملف دبلجة بنجاح! 🎙️✨" else "تعذر توليد الصوت، يرجى التحقق من محرك TTS ⚠️"
                 )
             }
         }
     }
 
     fun speakScriptLine(line: ScriptLine) {
+        if (!ttsManager.isEngineReady()) {
+            _uiState.value = _uiState.value.copy(
+                toastMessage = if (ttsManager.initState.value.state == TtsEngineState.INITIALIZING)
+                    "محرك الصوت قيد التهيئة، يرجى الانتظار ثوانٍ... ⏳"
+                else
+                    "محرك تحويل النص إلى كلام غير جاهز (${ttsManager.initState.value.errorMessage ?: "تأكد من دعم اللغة"}) ⚠️"
+            )
+            return
+        }
         val profile = ttsManager.voiceProfiles.find { it.id == line.voiceType }
             ?: ttsManager.voiceProfiles.first()
         ttsManager.speakText(line.textArabic, profile)
@@ -870,6 +1772,15 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
 
     fun generateAiTtsDubbing() {
         if (_uiState.value.isGeneratingAiDub) return
+        if (!ttsManager.isEngineReady()) {
+            _uiState.value = _uiState.value.copy(
+                toastMessage = if (ttsManager.initState.value.state == TtsEngineState.INITIALIZING)
+                    "محرك الصوت قيد التهيئة، يرجى الانتظار ثوانٍ قبل توليد الدبلجة... ⏳"
+                else
+                    "محرك الصوت غير جاهز للعمل حالياً ⚠️"
+            )
+            return
+        }
         _uiState.value = _uiState.value.copy(isGeneratingAiDub = true)
 
         viewModelScope.launch {
@@ -931,6 +1842,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
             )
         }
     }
+
 
     private val _previewPlayingProjectId = MutableStateFlow<Long?>(null)
     val previewPlayingProjectId: StateFlow<Long?> = _previewPlayingProjectId.asStateFlow()
@@ -1006,6 +1918,105 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun saveVoiceRecordingToDb(
+        title: String,
+        filePath: String,
+        durationSeconds: Float,
+        voiceEffect: String = _uiState.value.selectedVoiceEffect.name,
+        associatedScript: String = ""
+    ) {
+        viewModelScope.launch {
+            val file = File(filePath)
+            val size = if (file.exists()) file.length() else 0L
+            val recordingEntity = VoiceRecordingEntity(
+                title = title.ifBlank { "تسجيل صوتي ${System.currentTimeMillis() % 10000}" },
+                filePath = filePath,
+                durationSeconds = durationSeconds,
+                fileSizeBytes = size,
+                voiceEffect = voiceEffect,
+                detectedGender = _uiState.value.lastDetectedGender.name,
+                associatedScript = associatedScript,
+                timestamp = System.currentTimeMillis()
+            )
+            val savedId = repository.saveVoiceRecording(recordingEntity)
+            _uiState.value = _uiState.value.copy(
+                toastMessage = "تم حفظ التسجيل الصوتي في قاعدة البيانات بنجاح! 💾🎙️ (ID: $savedId)"
+            )
+        }
+    }
+
+    fun deleteVoiceRecordingFromDb(recording: VoiceRecordingEntity) {
+        viewModelScope.launch {
+            if (_currentlyPlayingRecordingId.value == recording.id) {
+                stopRecordingPreview()
+            }
+            repository.deleteVoiceRecording(recording)
+            try {
+                val file = File(recording.filePath)
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (_: Exception) {}
+
+            if (_uiState.value.recordedAudioPath == recording.filePath) {
+                _uiState.value = _uiState.value.copy(recordedAudioPath = null)
+            }
+            _uiState.value = _uiState.value.copy(toastMessage = "تم حذف التسجيل الصوتي '${recording.title}' من قاعدة البيانات بنجاح 🗑️")
+        }
+    }
+
+    /**
+     * Preview playback of a recorded voice file using Android MediaPlayer
+     */
+    fun togglePlayRecordingPreview(recording: VoiceRecordingEntity) {
+        if (_currentlyPlayingRecordingId.value == recording.id) {
+            stopRecordingPreview()
+        } else {
+            playRecordingPreview(recording)
+        }
+    }
+
+    fun playRecordingPreview(recording: VoiceRecordingEntity) {
+        stopRecordingPreview()
+        val file = File(recording.filePath)
+        if (!file.exists()) {
+            _uiState.value = _uiState.value.copy(toastMessage = "الملف الصوتي غير موجود على هذا المسار: ${recording.filePath}")
+            return
+        }
+        try {
+            previewMediaPlayer = MediaPlayer().apply {
+                setDataSource(recording.filePath)
+                prepare()
+                setOnCompletionListener {
+                    _currentlyPlayingRecordingId.value = null
+                    stopRecordingPreview()
+                }
+                start()
+            }
+            _currentlyPlayingRecordingId.value = recording.id
+        } catch (e: Exception) {
+            _currentlyPlayingRecordingId.value = null
+            _uiState.value = _uiState.value.copy(toastMessage = "خطأ في تشغيل المقطع عبر MediaPlayer: ${e.message}")
+        }
+    }
+
+    fun stopRecordingPreview() {
+        try {
+            if (previewMediaPlayer?.isPlaying == true) {
+                previewMediaPlayer?.stop()
+            }
+            previewMediaPlayer?.release()
+        } catch (_: Exception) {}
+        previewMediaPlayer = null
+        _currentlyPlayingRecordingId.value = null
+    }
+
+    fun applyVoiceRecordingToStudio(filePath: String) {
+        _uiState.value = _uiState.value.copy(
+            recordedAudioPath = filePath
+        )
+    }
+
     fun shareProject(project: DubbingProject? = null) {
         val audioPath = project?.recordedAudioPath ?: _uiState.value.recordedAudioPath
         if (audioPath == null || !File(audioPath).exists()) {
@@ -1043,15 +2054,21 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun openExportDialog(project: DubbingProject? = null) {
+    fun openExportDialog(
+        project: DubbingProject? = null,
+        initialFormat: ExportFormat = ExportFormat.MP4_VIDEO
+    ) {
         val targetClip = if (project != null) {
             SampleClipsRepository.getClipById(project.clipId)
         } else {
             _uiState.value.currentClip
         }
         val audioPath = project?.recordedAudioPath ?: _uiState.value.recordedAudioPath
-        if (audioPath == null || !File(audioPath).exists()) {
-            _uiState.value = _uiState.value.copy(toastMessage = "يرجى تسجيل الدبلجة أولاً لتتمكن من تصدير المشروع! 🎙️")
+        val hasLinesAudio = _uiState.value.scriptLines.any { it.customAudioPath != null && File(it.customAudioPath).exists() } ||
+                targetClip.scriptLines.any { it.customAudioPath != null && File(it.customAudioPath).exists() }
+
+        if ((audioPath == null || !File(audioPath).exists()) && !hasLinesAudio) {
+            _uiState.value = _uiState.value.copy(toastMessage = "يرجى تسجيل أو دبلجة الصوت أولاً لتتمكن من تصدير المشروع! 🎙️")
             return
         }
         _exportDialogState.value = ExportDialogUiState(
@@ -1062,7 +2079,8 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
             progress = 0f,
             statusMessage = "جاهز للتصدير",
             successResult = null,
-            errorMessage = null
+            errorMessage = null,
+            initialFormat = initialFormat
         )
     }
 
@@ -1079,10 +2097,13 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         val clip = currentState.clip ?: _uiState.value.currentClip
         val project = currentState.project ?: _uiState.value.currentProject
         val audioPath = project?.recordedAudioPath ?: _uiState.value.recordedAudioPath
+        val lines = _uiState.value.scriptLines.ifEmpty { clip.scriptLines }
+        val hasAudio = (audioPath != null && File(audioPath).exists()) ||
+                lines.any { it.customAudioPath != null && File(it.customAudioPath).exists() }
 
-        if (audioPath == null || !File(audioPath).exists()) {
+        if (!hasAudio) {
             _exportDialogState.value = currentState.copy(
-                errorMessage = "ملف التسجيل الصوتي غير متوفر"
+                errorMessage = "لا يوجد تسجيل صوتي أو مقاطع مدبلجة متوفرة للتصدير. يرجى توفير صوت مدبلج أولاً!"
             )
             return
         }
@@ -1105,7 +2126,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                         project = project,
                         customVideoPathOrUri = clip.videoUri,
                         recordedAudioPath = audioPath,
-                        scriptLines = _uiState.value.scriptLines.ifEmpty { clip.scriptLines },
+                        scriptLines = lines,
                         customTitle = customFileName,
                         syncOffsetMs = _uiState.value.syncOffsetMs,
                         onProgress = { prog, status ->
@@ -1120,7 +2141,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                         clip = clip,
                         project = project,
                         recordedAudioPath = audioPath,
-                        scriptLines = _uiState.value.scriptLines.ifEmpty { clip.scriptLines },
+                        scriptLines = lines,
                         customTitle = customFileName,
                         videoConfig = videoConfig,
                         onProgress = { prog, status ->
@@ -1132,11 +2153,13 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
             } else {
-                exportManager.exportAudio(
+                exportManager.exportSynchronizedAudioTrack(
                     clip = clip,
                     project = project,
                     recordedAudioPath = audioPath,
+                    scriptLines = lines,
                     customTitle = customFileName,
+                    syncOffsetMs = _uiState.value.syncOffsetMs,
                     onProgress = { prog, status ->
                         _exportDialogState.value = _exportDialogState.value.copy(
                             progress = prog,
@@ -1167,10 +2190,120 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Export the final synchronized dubbed audio track as a separate file to device storage (Music/VoiceMasterPro).
+     */
+    fun exportSynchronizedDubbedAudioTrack(
+        clip: DubbingClip = _uiState.value.currentClip,
+        customTitle: String? = null,
+        onComplete: ((ExportResult.Success) -> Unit)? = null
+    ) {
+        val lines = _uiState.value.scriptLines.ifEmpty { clip.scriptLines }
+        val audioPath = _uiState.value.recordedAudioPath ?: _uiState.value.currentProject?.recordedAudioPath
+        val hasAudio = (audioPath != null && File(audioPath).exists()) ||
+                lines.any { it.customAudioPath != null && File(it.customAudioPath).exists() }
+
+        if (!hasAudio) {
+            _uiState.value = _uiState.value.copy(toastMessage = "لا يوجد تسجيل صوتي أو مقاطع مدبلجة متوفرة لتصدير الصوت! 🎙️")
+            return
+        }
+
+        val fileName = customTitle ?: "صوت_مدبلج_${clip.title}"
+
+        _exportDialogState.value = ExportDialogUiState(
+            isVisible = true,
+            project = _uiState.value.currentProject,
+            clip = clip,
+            isExporting = true,
+            progress = 0.08f,
+            statusMessage = "جاري تجميع ومزامنة المسار الصوتي النهائي وحفظه في الذاكرة...",
+            successResult = null,
+            errorMessage = null,
+            initialFormat = ExportFormat.MP3_AUDIO
+        )
+
+        viewModelScope.launch {
+            val result = exportManager.exportSynchronizedAudioTrack(
+                clip = clip,
+                scriptLines = lines,
+                recordedAudioPath = audioPath,
+                project = _uiState.value.currentProject,
+                customTitle = fileName,
+                syncOffsetMs = _uiState.value.syncOffsetMs,
+                onProgress = { prog, status ->
+                    _exportDialogState.value = _exportDialogState.value.copy(
+                        progress = prog,
+                        statusMessage = status
+                    )
+                }
+            )
+
+            when (result) {
+                is ExportResult.Success -> {
+                    _exportDialogState.value = _exportDialogState.value.copy(
+                        isExporting = false,
+                        progress = 1.0f,
+                        statusMessage = "تم تصدير مسار الصوت المتزامن بنجاح وحفظه في الذاكرة!",
+                        successResult = result,
+                        errorMessage = null
+                    )
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "تم حفظ مسار الصوت في ${result.filePath} بنجاح! 🎵💾"
+                    )
+                    onComplete?.invoke(result)
+                }
+                is ExportResult.Error -> {
+                    _exportDialogState.value = _exportDialogState.value.copy(
+                        isExporting = false,
+                        errorMessage = result.message
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Directly saves any dubbed audio file (from AudioDubbingScreen or VATT or any audio path)
+     * to the user device's storage (Music/VoiceMasterPro).
+     */
+    fun saveDubbedAudioFileToStorage(
+        audioPath: String,
+        suggestedTitle: String = "dubbed_audio",
+        onResult: (ExportResult) -> Unit = {}
+    ) {
+        val file = File(audioPath)
+        if (!file.exists()) {
+            _uiState.value = _uiState.value.copy(toastMessage = "الملف الصوتي المراد حفظه غير موجود")
+            onResult(ExportResult.Error("الملف الصوتي المراد حفظه غير موجود"))
+            return
+        }
+        viewModelScope.launch {
+            val result = exportManager.saveAudioFileToDeviceStorage(file, suggestedTitle)
+            when (result) {
+                is ExportResult.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "تم حفظ الملف الصوتي بنجاح في: ${result.filePath} 💾🎵"
+                    )
+                    ttsManager.speakText("تم حفظ الملف الصوتي بنجاح في ذاكرة الهاتف", utteranceId = "audio_saved_speak")
+                }
+                is ExportResult.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "خطأ في حفظ الملف: ${result.message}"
+                    )
+                }
+            }
+            onResult(result)
+        }
+    }
+
     fun openExportedFile(result: ExportResult.Success) {
         try {
             val intent = Intent(Intent.ACTION_VIEW).apply {
-                val mimeType = if (result.format == ExportFormat.MP4_VIDEO) "video/mp4" else "audio/mpeg"
+                val mimeType = when {
+                    result.format == ExportFormat.MP4_VIDEO -> "video/mp4"
+                    result.fileName.endsWith(".wav", ignoreCase = true) -> "audio/wav"
+                    else -> "audio/mpeg"
+                }
                 if (result.uri != null) {
                     setDataAndType(result.uri, mimeType)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -1202,7 +2335,11 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                     file
                 )
             }
-            val mimeType = if (result.format == ExportFormat.MP4_VIDEO) "video/mp4" else "audio/mpeg"
+            val mimeType = when {
+                result.format == ExportFormat.MP4_VIDEO -> "video/mp4"
+                result.fileName.endsWith(".wav", ignoreCase = true) -> "audio/wav"
+                else -> "audio/mpeg"
+            }
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = mimeType
                 putExtra(Intent.EXTRA_STREAM, uri)
@@ -1211,7 +2348,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                     if (result.format == ExportFormat.MP4_VIDEO)
                         "شاهد مقطع الفيديو المدبلج بصوتي! 🎬✨ عبر تطبيق استوديو دبلجة المقاطع العربي"
                     else
-                        "استمع إلى تسجيل الدبلجة الصوتي! 🎙️✨ عبر تطبيق استوديو دبلجة المقاطع العربي"
+                        "استمع إلى تسجيل الدبلجة الصوتي المتزامن! 🎙️✨ عبر تطبيق استوديو دبلجة المقاطع العربي"
                 )
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -1231,16 +2368,32 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun shareRecordedAudioOnly() {
-        shareProject(null)
+        val audioPath = _uiState.value.recordedAudioPath ?: _uiState.value.currentProject?.recordedAudioPath
+        if (audioPath != null && File(audioPath).exists()) {
+            shareProject(null)
+        } else {
+            val lines = _uiState.value.scriptLines
+            if (lines.any { it.customAudioPath != null && File(it.customAudioPath).exists() }) {
+                exportSynchronizedDubbedAudioTrack { successResult ->
+                    shareExportedFile(successResult)
+                }
+            } else {
+                _uiState.value = _uiState.value.copy(toastMessage = "يرجى تسجيل أو دبلجة الصوت أولاً للمشاركة!")
+            }
+        }
     }
 
     fun quickExportAndShareMergedVideo(customTitle: String? = null) {
-        val audioPath = _uiState.value.recordedAudioPath
-        if (audioPath == null || !File(audioPath).exists()) {
-            _uiState.value = _uiState.value.copy(toastMessage = "يرجى تسجيل الصوت أولاً لتصدير ومشاركة الفيديو المدمج! 🎙️")
+        val clip = _uiState.value.currentClip
+        val audioPath = _uiState.value.recordedAudioPath ?: _uiState.value.currentProject?.recordedAudioPath
+        val lines = _uiState.value.scriptLines.ifEmpty { clip.scriptLines }
+        val hasAudio = (audioPath != null && File(audioPath).exists()) ||
+                lines.any { it.customAudioPath != null && File(it.customAudioPath).exists() }
+
+        if (!hasAudio) {
+            _uiState.value = _uiState.value.copy(toastMessage = "يرجى تسجيل أو دبلجة الصوت أولاً لتصدير ومشاركة الفيديو المدمج! 🎙️")
             return
         }
-        val clip = _uiState.value.currentClip
         val fileName = customTitle ?: "دبلجة_${clip.title}"
         _exportDialogState.value = ExportDialogUiState(
             isVisible = true,
@@ -1258,7 +2411,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                 project = _uiState.value.currentProject,
                 customVideoPathOrUri = clip.videoUri,
                 recordedAudioPath = audioPath,
-                scriptLines = _uiState.value.scriptLines.ifEmpty { clip.scriptLines },
+                scriptLines = lines,
                 customTitle = fileName,
                 syncOffsetMs = _uiState.value.syncOffsetMs,
                 onProgress = { prog, status ->
@@ -1748,18 +2901,24 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.value = _uiState.value.copy(isEffectsPreviewPlaying = true)
             } else {
                 // If no audio take recorded yet, trigger demonstration sample speech through TTS
-                val sampleText = when (targetPreset) {
-                    VoicePresetType.ROBOT -> "أنا روبوت ذكاء اصطناعي، تم تفعيل مؤثر الروبوت الآلي."
-                    VoicePresetType.ECHO -> "استوديو وصدى الصوت، تجربة ارتداد وتأخير الكلمات."
-                    VoicePresetType.DEEP_VOICE -> "طبقة صوت جهورية سينمائية فخمة وعميقة للأفلام."
-                    VoicePresetType.CHIPMUNK -> "صوت كرتوني ومرح لشخصيات الرسوم المتحركة."
-                    VoicePresetType.VINTAGE_RADIO -> "نداء عبر المذياع الكلاسيكي واللاسلكي."
-                    VoicePresetType.NORMAL -> "صوت طبيعي نقي بدون أي مؤثرات."
+                if (ttsManager.isEngineReady()) {
+                    val sampleText = when (targetPreset) {
+                        VoicePresetType.ROBOT -> "أنا روبوت ذكاء اصطناعي، تم تفعيل مؤثر الروبوت الآلي."
+                        VoicePresetType.ECHO -> "استوديو وصدى الصوت، تجربة ارتداد وتأخير الكلمات."
+                        VoicePresetType.DEEP_VOICE -> "طبقة صوت جهورية سينمائية فخمة وعميقة للأفلام."
+                        VoicePresetType.CHIPMUNK -> "صوت كرتوني ومرح لشخصيات الرسوم المتحركة."
+                        VoicePresetType.VINTAGE_RADIO -> "نداء عبر المذياع الكلاسيكي واللاسلكي."
+                        VoicePresetType.NORMAL -> "صوت طبيعي نقي بدون أي مؤثرات."
+                    }
+                    ttsManager.speakText(sampleText)
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "معاينة صوتية لمؤثر ${targetPreset.titleArabic} (${targetPreset.titleEnglish}) 🎙️"
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "محرك الصوت قيد التهيئة، يرجى المحاولة بعد لحظات... ⏳"
+                    )
                 }
-                ttsManager.speakText(sampleText)
-                _uiState.value = _uiState.value.copy(
-                    toastMessage = "معاينة صوتية لمؤثر ${targetPreset.titleArabic} (${targetPreset.titleEnglish}) 🎙️"
-                )
             }
         }
     }
@@ -2141,8 +3300,8 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                 originalVolume = autoDubberState.value.originalVideoVolume,
                 dubVolume = autoDubberState.value.dubbedVoiceVolume,
                 bgmVolume = 0.25f,
-                voiceEffect = if (autoDubberState.value.selectedStyle == AutoDubbingStyle.SPACETOON_ANIME) "NORMAL" else "AUTO_GENDER",
-                bgmStyle = if (autoDubberState.value.selectedStyle == AutoDubbingStyle.SPACETOON_ANIME) "SPACETOON" else "CINEMATIC",
+                voiceEffect = if (autoDubberState.value.selectedStyle == AutoDubbingStyle.CLASSIC_ANIME) "NORMAL" else "AUTO_GENDER",
+                bgmStyle = if (autoDubberState.value.selectedStyle == AutoDubbingStyle.CLASSIC_ANIME) "ORCHESTRAL" else "CINEMATIC",
                 scriptJson = scriptJson,
                 durationSeconds = clip.durationSeconds,
                 lastModified = System.currentTimeMillis()
@@ -2160,8 +3319,8 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
             scriptLines = clip.scriptLines,
             originalVolume = autoDubberState.value.originalVideoVolume,
             dubVolume = autoDubberState.value.dubbedVoiceVolume,
-            bgmVolume = if (autoDubberState.value.selectedStyle == AutoDubbingStyle.SPACETOON_ANIME) 0.35f else 0.25f,
-            selectedBgmStyle = if (autoDubberState.value.selectedStyle == AutoDubbingStyle.SPACETOON_ANIME) BgmStyle.SPACETOON else BgmStyle.CINEMATIC,
+            bgmVolume = if (autoDubberState.value.selectedStyle == AutoDubbingStyle.CLASSIC_ANIME) 0.35f else 0.25f,
+            selectedBgmStyle = if (autoDubberState.value.selectedStyle == AutoDubbingStyle.CLASSIC_ANIME) BgmStyle.ORCHESTRAL else BgmStyle.CINEMATIC,
             currentPlaybackSeconds = 0f,
             activeLineIndex = -1,
             recordedAudioPath = null
@@ -2185,11 +3344,20 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun previewSpeechForLine(line: ScriptLine) {
+        if (!ttsManager.isEngineReady()) {
+            _uiState.value = _uiState.value.copy(
+                toastMessage = if (ttsManager.initState.value.state == TtsEngineState.INITIALIZING)
+                    "محرك الصوت قيد التهيئة، يرجى الانتظار ثوانٍ... ⏳"
+                else
+                    "محرك الصوت غير جاهز (${ttsManager.initState.value.errorMessage ?: "تأكد من إعدادات TTS"}) ⚠️"
+            )
+            return
+        }
         val profile = ttsManager.voiceProfiles.find { 
             when (line.voiceType) {
-                "SPACETOON_HERO" -> it.id == "spacetoon_hero_male"
-                "SPACETOON_HEROINE" -> it.id == "spacetoon_heroine_female"
-                "SPACETOON_NARRATOR" -> it.id == "spacetoon_anime_narrator"
+                "HERO_MALE" -> it.id == "hero_male"
+                "HEROINE_FEMALE" -> it.id == "heroine_female"
+                "EPIC_NARRATOR" -> it.id == "epic_narrator"
                 "FEMALE" -> it.id == "natural_arabic_female"
                 "CARTOON" -> it.id == "cartoon_hero"
                 "DRAMATIC" -> it.id == "male_narrator"
@@ -2200,6 +3368,76 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
 
         val langCode = autoDubberState.value.selectedLanguage.code
         ttsManager.speakText(line.textArabic, profile, langCode)
+    }
+
+    /**
+     * Synthesizes text to a real audio file using TTS and assigns it as the main recorded take
+     * or line-specific take for the video.
+     */
+    fun synthesizeCustomScriptToAudio(
+        text: String,
+        profile: VoiceProfile,
+        targetLineId: String? = null,
+        targetDurationSeconds: Float? = null,
+        speechRateMultiplier: Float = 1.0f,
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        if (text.isBlank()) {
+            _uiState.value = _uiState.value.copy(toastMessage = "يرجى كتابة نص لتوليد الصوت ⚠️")
+            onComplete(false, null)
+            return
+        }
+
+        viewModelScope.launch {
+            if (!ttsManager.isEngineReady()) {
+                val ready = ttsManager.awaitInitialization(3000L)
+                if (!ready) {
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = if (ttsManager.initState.value.state == TtsEngineState.INITIALIZING)
+                            "محرك الصوت قيد التهيئة، يرجى المحاولة بعد قليل... ⏳"
+                        else
+                            "محرك الصوت غير جاهز (${ttsManager.initState.value.errorMessage ?: "تأكد من إعدادات TTS"}) ⚠️"
+                    )
+                    onComplete(false, null)
+                    return@launch
+                }
+            }
+            _uiState.value = _uiState.value.copy(toastMessage = "جاري توليد الصوت بالذكاء الاصطناعي... 🎙️")
+            val outputFileName = "tts_take_${System.currentTimeMillis()}.wav"
+            ttsManager.synthesizeToFile(
+                text = text,
+                profile = profile,
+                languageCode = "ar",
+                targetDurationSeconds = targetDurationSeconds,
+                speechRateMultiplier = speechRateMultiplier,
+                outputFileName = outputFileName
+            ) { generatedPath ->
+                if (generatedPath != null && File(generatedPath).exists()) {
+                    if (targetLineId != null) {
+                        // Assign to specific script line take
+                        val updatedLines = _uiState.value.scriptLines.map { line ->
+                            if (line.id == targetLineId) {
+                                line.copy(customAudioPath = generatedPath, isDubbed = true, textArabic = text)
+                            } else line
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            scriptLines = updatedLines,
+                            toastMessage = "تم توليد وربط الصوت بالمشهد بنجاح! 🎬✨"
+                        )
+                    } else {
+                        // Assign as main studio dubbed voice
+                        _uiState.value = _uiState.value.copy(
+                            recordedAudioPath = generatedPath,
+                            toastMessage = "تم تحويل النص إلى صوت واستخدامه كمسار دبلجة رئيسي! 🎙️✨"
+                        )
+                    }
+                    onComplete(true, generatedPath)
+                } else {
+                    _uiState.value = _uiState.value.copy(toastMessage = "تعذر توليد الملف الصوتي، يرجى المحاولة ثانية ⚠️")
+                    onComplete(false, null)
+                }
+            }
+        }
     }
 
     // ==========================================
@@ -2474,7 +3712,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         updateManager.performAsyncUpdateCheck { result ->
             if (result.isUpdateAvailable && result.latestRelease != null) {
                 _uiState.value = _uiState.value.copy(
-                    toastMessage = "يتوفر تحديث جديد: v${result.latestRelease.versionName} 🚀"
+                    toastMessage = "🎉 يتوفر تحديث جديد عبر الإنترنت: v${result.latestRelease.versionName}!"
                 )
             } else {
                 _uiState.value = _uiState.value.copy(
@@ -2482,6 +3720,15 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
         }
+    }
+
+    fun saveGitHubUpdateConfig(owner: String, repo: String, customUrl: String = "") {
+        updateManager.onlineProvider.githubOwner = owner
+        updateManager.onlineProvider.githubRepo = repo
+        updateManager.onlineProvider.customApiUrl = customUrl
+        _uiState.value = _uiState.value.copy(
+            toastMessage = "تم حفظ إعدادات خادم ومستودع التحديثات بنجاح! 🌐💾"
+        )
     }
 
     // ==========================================
@@ -2658,6 +3905,370 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // =========================================================================
+    // 3-Step Dubbing Pipeline (STT -> Gemini Translation -> TTS Waveform Sync)
+    // =========================================================================
+
+    /**
+     * Step 1: Start voice STT recognition.
+     */
+    fun startListeningStt(languageCode: String = "ar-SA") {
+        ttsManager.speakText("بدأ الاستماع لصوتك الآن، تفضل بالتحدث", utteranceId = "stt_start_speak")
+        _uiState.value = _uiState.value.copy(
+            isSttListening = true,
+            toastMessage = "جاري الاستماع لصوتك لتحويله إلى نص متزامن... 🎙️"
+        )
+        sttManager.startListening(languageCode) { recognizedText ->
+            _uiState.value = _uiState.value.copy(
+                isSttListening = false,
+                sttTranscribedText = recognizedText
+            )
+            applySttToTimedLines(recognizedText)
+        }
+    }
+
+    /**
+     * Step 1: Stop voice STT recognition.
+     */
+    fun stopListeningStt() {
+        sttManager.stopListening()
+        _uiState.value = _uiState.value.copy(isSttListening = false)
+        ttsManager.speakText("تم إيقاف الاستماع", utteranceId = "stt_stop_speak")
+    }
+
+    /**
+     * Step 1: Maps raw STT transcription into chronologically synchronized script lines across the clip.
+     */
+    fun applySttToTimedLines(rawText: String) {
+        if (rawText.isBlank()) return
+        val clip = _uiState.value.currentClip
+        val generatedLines = sttManager.buildSynchronizedScriptLines(
+            rawText = rawText,
+            totalClipDurationSeconds = clip.durationSeconds,
+            characterName = "المتحدث المدبلج",
+            characterAvatar = "🎙️"
+        )
+        if (generatedLines.isNotEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                scriptLines = generatedLines,
+                sttTranscribedText = rawText,
+                currentClip = clip.copy(scriptLines = generatedLines),
+                toastMessage = "تم توزيع النص على خط الزمن بنجاح (${generatedLines.size} سطر) ⏱️"
+            )
+            ttsManager.speakText(
+                "تم استخراج النص وتوزيعه على خط زمن المشهد، بإمكانك الآن نسخه أو ترجمته",
+                utteranceId = "stt_applied_speak"
+            )
+        }
+    }
+
+    /**
+     * Step 1 & 2: Copies the entire dialogue script to the system clipboard for the user.
+     */
+    fun copyScriptTextToClipboard(includeTimestamps: Boolean = false) {
+        val lines = _uiState.value.scriptLines
+        if (lines.isEmpty()) {
+            _uiState.value = _uiState.value.copy(toastMessage = "لا يوجد نص لنسخه حالياً")
+            ttsManager.speakText("لا يوجد نص لنسخه حالياً", utteranceId = "copy_empty_speak")
+            return
+        }
+
+        val textToCopy = lines.joinToString("\n") { line ->
+            if (includeTimestamps) {
+                "[${line.startSeconds}s - ${line.endSeconds}s] ${line.characterName}: ${line.textArabic}"
+            } else {
+                line.textArabic
+            }
+        }
+
+        try {
+            val clipboard = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            val clip = ClipData.newPlainText("Dubbing Script", textToCopy)
+            clipboard?.setPrimaryClip(clip)
+            _uiState.value = _uiState.value.copy(toastMessage = "تم نسخ النص إلى الحافظة بنجاح! 📋")
+            ttsManager.speakText("تم نسخ النص بالكامل إلى الحافظة", utteranceId = "copy_success_speak")
+        } catch (e: Exception) {
+            Log.e("DubbingViewModel", "Failed to copy script to clipboard", e)
+        }
+    }
+
+    /**
+     * Step 2: Translates all dialogue lines using Gemini API while strictly maintaining timing.
+     */
+    fun translateScriptLinesWithGemini(
+        targetLanguage: String = "العربية",
+        onComplete: (Boolean) -> Unit = {}
+    ) {
+        val currentLines = _uiState.value.scriptLines
+        if (currentLines.isEmpty()) {
+            _uiState.value = _uiState.value.copy(toastMessage = "يرجى توفير نص أو استخراجه أولاً للترجمة")
+            ttsManager.speakText("يرجى توفير نص أولاً للترجمة", utteranceId = "trans_empty_speak")
+            onComplete(false)
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isGeminiTranslating = true,
+                targetTranslationLanguage = targetLanguage,
+                toastMessage = "جاري ترجمة الحوارات إلى $targetLanguage بواسطة Gemini AI مع الحفاظ على التوقيت... 🤖"
+            )
+            ttsManager.speakText("جاري ترجمة الحوارات إلى $targetLanguage عبر الذكاء الاصطناعي جيميناي", utteranceId = "trans_start_speak")
+
+            try {
+                val promptBuilder = StringBuilder()
+                promptBuilder.append("You are an expert dubbing translator. Translate the following spoken dialogue lines into $targetLanguage.\n")
+                promptBuilder.append("CRITICAL: Keep the emotional nuance and rhythm for voice acting. Format your response strictly as a JSON array where each object has:\n")
+                promptBuilder.append("{\"index\": 0, \"translatedText\": \"...\"}\n")
+                promptBuilder.append("Here are the lines to translate:\n")
+                currentLines.forEachIndexed { idx, line ->
+                    promptBuilder.append("Line $idx: ${line.textArabic}\n")
+                }
+
+                val prompt = promptBuilder.toString()
+                val responseResult = geminiUnifiedClient.sendChatMessage(
+                    messages = emptyList(),
+                    userPrompt = prompt,
+                    model = com.example.ai.GeminiChatModel.FLASH_3_5
+                )
+
+                val responseText = responseResult.getOrNull()?.text ?: ""
+                var updatedLines = currentLines
+
+                if (responseText.isNotBlank()) {
+                    try {
+                        val cleanedJson = responseText.replace("```json", "").replace("```", "").trim()
+                        val jsonArrayStart = cleanedJson.indexOf('[')
+                        val jsonArrayEnd = cleanedJson.lastIndexOf(']')
+                        if (jsonArrayStart != -1 && jsonArrayEnd != -1) {
+                            val jsonArray = JSONArray(cleanedJson.substring(jsonArrayStart, jsonArrayEnd + 1))
+                            updatedLines = currentLines.mapIndexed { idx, line ->
+                                var translated = line.textArabic
+                                for (i in 0 until jsonArray.length()) {
+                                    val obj = jsonArray.getJSONObject(i)
+                                    if (obj.optInt("index", -1) == idx) {
+                                        translated = obj.optString("translatedText", translated)
+                                        break
+                                    }
+                                }
+                                line.copy(
+                                    textOriginal = line.textArabic,
+                                    textArabic = translated
+                                )
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("DubbingViewModel", "JSON parsing of translation failed, using line fallback", e)
+                    }
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    scriptLines = updatedLines,
+                    currentClip = _uiState.value.currentClip.copy(scriptLines = updatedLines),
+                    isGeminiTranslating = false,
+                    toastMessage = "اكتملت الترجمة إلى $targetLanguage بنجاح! ✨"
+                )
+                ttsManager.speakText("اكتملت ترجمة النص إلى $targetLanguage بنجاح، يمكنك الآن توليد الصوت وتركيبه", utteranceId = "trans_done_speak")
+                onComplete(true)
+            } catch (e: Exception) {
+                Log.e("DubbingViewModel", "Error in Gemini translation", e)
+                _uiState.value = _uiState.value.copy(
+                    isGeminiTranslating = false,
+                    toastMessage = "تعذر إكمال الترجمة عبر الإنترنت، تم الاحتفاظ بالنص الحالي"
+                )
+                onComplete(false)
+            }
+        }
+    }
+
+    /**
+     * Step 3: Generates a synchronized WAV audio track containing all dialogue lines placed at exact timestamps,
+     * saves it directly in app storage, and attaches it to the video timeline for instant synchronized playback.
+     */
+    fun synthesizeAndSyncDubbedAudio(
+        selectedProfile: VoiceProfile? = null,
+        onComplete: (String?) -> Unit = {}
+    ) {
+        val lines = _uiState.value.scriptLines
+        val clip = _uiState.value.currentClip
+        val profile = selectedProfile ?: ttsManager.voiceProfiles.first()
+
+        if (lines.isEmpty()) {
+            _uiState.value = _uiState.value.copy(toastMessage = "لا توجد نصوص حوارية لتوليد الصوت لها")
+            ttsManager.speakText("لا توجد نصوص لتوليد الصوت لها، يرجى كتابة أو استخراج نص أولاً", utteranceId = "synth_empty_speak")
+            onComplete(null)
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isTtsSynthesizingTimeline = true,
+                toastMessage = "جاري توليد الصوت وحفظه ومزامنته مع خط زمن الفيديو... 🎙️🎬"
+            )
+            ttsManager.speakText("جاري توليد ملف الصوت وحفظه ومزامنته مع الفيديو بدقة", utteranceId = "synth_start_speak")
+
+            try {
+                val dialogues = lines.map {
+                    Triple(it.textArabic, it.startSeconds, it.endSeconds)
+                }
+
+                val audioDir = File(getApplication<Application>().filesDir, "synced_dubbing")
+                audioDir.mkdirs()
+                val outputFile = File(audioDir, "dubbed_sync_${clip.id}_${System.currentTimeMillis()}.wav")
+
+                val generatedFile = ttsManager.synthesizeSynchronizedTimelineWav(
+                    dialogues = dialogues,
+                    totalDurationSeconds = clip.durationSeconds.toFloat(),
+                    profile = profile,
+                    outputFile = outputFile
+                )
+
+                if (generatedFile.exists() && generatedFile.length() > 44) {
+                    val filePath = generatedFile.absolutePath
+                    _uiState.value = _uiState.value.copy(
+                        recordedAudioPath = filePath,
+                        synthesizedDubbedAudioPath = filePath,
+                        isTtsSynthesizingTimeline = false,
+                        originalVolume = 0.15f,
+                        dubVolume = 1.0f,
+                        toastMessage = "تم توليد الصوت وحفظه في الاستوديو وتركيبه على الفيديو بنجاح! 🎵🎬"
+                    )
+
+                    // Update project if active
+                    _uiState.value.currentProject?.let { proj ->
+                        val updatedProj = proj.copy(
+                            recordedAudioPath = filePath,
+                            lastModified = System.currentTimeMillis()
+                        )
+                        repository.updateProject(updatedProj)
+                    }
+
+                    ttsManager.speakText("تم توليد الصوت وحفظه وتركيبه على الفيديو بنجاح، اضغط تشغيل للاستماع الآن", utteranceId = "synth_done_speak")
+                    onComplete(filePath)
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isTtsSynthesizingTimeline = false,
+                        toastMessage = "تعذر توليد ملف الصوت، يرجى إعادة المحاولة"
+                    )
+                    onComplete(null)
+                }
+            } catch (e: Exception) {
+                Log.e("DubbingViewModel", "Failed to synthesize and sync dubbed audio", e)
+                _uiState.value = _uiState.value.copy(
+                    isTtsSynthesizingTimeline = false,
+                    toastMessage = "حدث خطأ أثناء توليد الصوت: ${e.localizedMessage}"
+                )
+                onComplete(null)
+            }
+        }
+    }
+
+    /**
+     * Master 100% Autonomous Dubbing Pipeline:
+     * - Requires ZERO microphone.
+     * - Requires ZERO manual text writing.
+     * - Automatically extracts dialogue & timestamps from clip/scene or generates them intelligently.
+     * - Automatically translates to targetLanguage using Gemini AI (with timing preserved).
+     * - Automatically synthesizes character audio track via TTS engine and attaches to timeline.
+     * - Saves the project and triggers playback!
+     */
+    fun performCompleteAutonomousDubbing(
+        targetLanguage: String = "العربية",
+        onComplete: (Boolean, String) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch {
+            try {
+                // Ensure we have real script lines; if empty, extract directly from the imported video
+                if (_uiState.value.scriptLines.isEmpty()) {
+                    val context = getApplication<Application>()
+                    val videoFile = withContext(Dispatchers.IO) {
+                        val localPath = autoDubberState.value.importedVideo?.localFilePath
+                        if (localPath != null && File(localPath).exists() && File(localPath).length() > 500) {
+                            File(localPath)
+                        } else {
+                            val uriString = autoDubberState.value.importedVideo?.uriString
+                            val uri = uriString?.let { Uri.parse(it) }
+                            if (uri != null) {
+                                val cacheFile = File(context.cacheDir, "auto_dub_input_${System.currentTimeMillis()}.mp4")
+                                context.contentResolver.openInputStream(uri)?.use { input ->
+                                    FileOutputStream(cacheFile).use { output -> input.copyTo(output) }
+                                }
+                                if (cacheFile.exists() && cacheFile.length() > 500) cacheFile else null
+                            } else null
+                        }
+                    }
+
+                    if (videoFile != null) {
+                        val result = withContext(Dispatchers.IO) {
+                            geminiTranscriptionService.transcribeVideoAudio(
+                                videoFile = videoFile,
+                                targetDialect = _videoSpeechToTextState.value.selectedDialect,
+                                customApiKey = _geminiApiKey.value
+                            )
+                        }
+                        if (result.segments.isNotEmpty()) {
+                            val lines = result.segments.mapIndexed { idx, seg ->
+                                ScriptLine(
+                                    id = "auto_line_${idx}_${System.currentTimeMillis()}",
+                                    characterName = seg.speaker,
+                                    characterAvatar = if (seg.speakerGender == "FEMALE") "👩" else if (seg.speakerGender == "CHILD") "🧒" else "🎙️",
+                                    textArabic = seg.arabicDubbedAdaptation.ifBlank { seg.originalSpeech },
+                                    startSeconds = seg.startSeconds,
+                                    endSeconds = seg.endSeconds
+                                )
+                            }
+                            _uiState.value = _uiState.value.copy(scriptLines = lines)
+                        } else {
+                            onComplete(false, result.errorMessage ?: "تعذر استخراج حوارات واضحة من الفيديو")
+                            return@launch
+                        }
+                    } else {
+                        onComplete(false, "يرجى استيراد مقطع فيديو أولاً لإجراء الدبلجة التلقائية")
+                        return@launch
+                    }
+                }
+
+                val afterTranslation = {
+                    synthesizeAndSyncDubbedAudio { audioPath ->
+                        if (audioPath != null) {
+                            startPlayback()
+                            onComplete(true, "اكتملت الدبلجة التلقائية 100% وتم تشغيل الفيديو بالصوت الجديد بنجاح! 🎉")
+                        } else {
+                            onComplete(false, "تمت المعالجة ولكن تعذر توليد ملف الصوت")
+                        }
+                    }
+                }
+
+                // If targetLanguage is not Arabic, translate via Gemini
+                if (targetLanguage != "العربية") {
+                    translateScriptLinesWithGemini(targetLanguage) { _ ->
+                        afterTranslation()
+                    }
+                } else {
+                    afterTranslation()
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isGeminiTranslating = false,
+                    isTtsSynthesizingTimeline = false
+                )
+                onComplete(false, "حدث خطأ: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun autoGenerateSmartDialogueLines() {
+        val currentVideoUri = autoDubberState.value.importedVideo?.uriString?.let { Uri.parse(it) }
+        val localPath = autoDubberState.value.importedVideo?.localFilePath
+        if (currentVideoUri != null || (localPath != null && File(localPath).exists())) {
+            transcribeVideoForTimestamps(currentVideoUri)
+        } else {
+            _uiState.value = _uiState.value.copy(
+                toastMessage = "يرجى استيراد مقطع فيديو أولاً لاستخراج الحوارات والتوقيتات بالذكاء الاصطناعي 🎬"
+            )
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         playbackJob?.cancel()
@@ -2665,10 +4276,16 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         trimmerPlaybackJob?.cancel()
         recordingManager.release()
         ttsManager.release()
+        sttManager.release()
+        assetAudioPlayerService.release()
+        offlineTtsService.release()
+        offlineSttService.release()
         genderDetector.stopAnalysis()
         instantDubbingEngine.release()
         audioEffectsProcessor.release()
         SoundEffectsGenerator.stopBgm()
+        audioDubbingManager.release()
+        stopRecordingPreview()
         updateWebServer.stop()
     }
 }

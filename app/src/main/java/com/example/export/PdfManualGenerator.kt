@@ -111,10 +111,10 @@ object PdfManualGenerator {
             canvas1.drawRect(0f, 130f, pageWidth.toFloat(), 140f, paint)
 
             // Header Content
-            canvas1.drawText("دليل الاستخدام الشامل ومرجع الأدوات - تطبيق استوديو الدبلجة 🎙️", pageWidth - 30f, 45f, titlePaint)
-            canvas1.drawText("المرجع الكامل لشرح كل أداة، كل شاشة، ومكانها وطريقة استخدامها بالتفصيل", pageWidth - 30f, 75f, subtitlePaint)
+            canvas1.drawText("دليل الاستخدام الشامل - فويس ماستر برو | VoiceMaster Pro 🎙️", pageWidth - 30f, 45f, titlePaint)
+            canvas1.drawText("جميع حقوق الملكية الفكرية محفوظة © 2026 للمطور: محمد رضا محمود محمود السيد سليمة", pageWidth - 30f, 75f, subtitlePaint)
             val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
-            canvas1.drawText("تاريخ الإصدار: $dateStr • إصدار الدليل: 2.5 Pro", pageWidth - 30f, 105f, subtitlePaint)
+            canvas1.drawText("مصر - المنوفية - شبين الكوم - شارع القفاص • تاريخ الإصدار: $dateStr • v2.6 Pro", pageWidth - 30f, 105f, subtitlePaint)
 
             // Overview Box
             var currentY = 160f
@@ -127,7 +127,7 @@ object PdfManualGenerator {
             paint.style = Paint.Style.FILL
 
             canvas1.drawText("📌 نظرة عامة على البرنامج وماذا يقدم:", pageWidth - 45f, currentY + 24f, sectionTitlePaint)
-            val overviewText = "استوديو الدبلجة الاحترافي هو تطبيق متكامل لدبلجة الرسوم المتحركة والفيديوهات باللغة العربية الفصحى وأسلوب سبيستون الأصيل. يشمل تسجيل الصوت البشري، الذكاء الاصطناعي لفصل وتحويل الصوت، التدقيق اللغوي والتشكيل، مكساج 3 مسارات، ومعاينة ومقارنة دقيقة قبل التصدير بصيغ MP4 و MP3 و SRT."
+            val overviewText = "استوديو الدبلجة الاحترافي هو تطبيق متكامل لدبلجة الرسوم المتحركة والفيديوهات باللغة العربية الفصحى وأسلوب الدبلجة الكلاسيكية الأصيل. يشمل تسجيل الصوت البشري، الذكاء الاصطناعي لفصل وتحويل الصوت، التدقيق اللغوي والتشكيل، مكساج 3 مسارات، ومعاينة ومقارنة دقيقة قبل التصدير بصيغ MP4 و MP3 و SRT."
             drawRtlParagraph(canvas1, overviewText, 45f, currentY + 38f, pageWidth - 90f, bodyPaint)
 
             // Section 1: Studio Screen (الاستوديو)
@@ -149,7 +149,7 @@ object PdfManualGenerator {
                 "• مسار الفيديو والتليبرومبتر (Teleprompter):" to "عرض الفيديو المتزامن مع سكرول تلقائي لكلمات الحوار وتحديد السطر النشط بلون ذهبي.",
                 "• محرك التسجيل البشري (Voice Recorder):" to "تسجيل أداء صوتي بجودة استوديو 48kHz مع عداد تنازلي ومؤقت SMPTE فائق الدقة.",
                 "• مكساج 3 مسارات (3-Track Audio Mixer):" to "التحكم المستقل بصوت المؤدي، والصوت الأصلي، وموسيقى الخلفية مع كتم فوري (Mute).",
-                "• مؤثرات سبيستون (Voice Effects & Pitch):" to "تطبيق نبرات الأبطال، الأشرار، الصدى الملحمي، وفلاتر الراديو ونقاء الصوت البشري.",
+                "• مؤثرات ونبرات الصوت (Voice Effects & Pitch):" to "تطبيق نبرات الأبطال، الأشرار، الصدى الملحمي، وفلاتر الراديو ونقاء الصوت البشري.",
                 "• شريط التايم لاين والقفز إطاراً بإطار:" to "التنقل الدقيق في أجزاء الثانية وضبط بداية ونهاية كل سطر حواري بنقرة زر."
             )
             drawToolList(canvas1, studioTools, currentY + 45f, pageWidth - 50f, boldBodyPaint, bodyPaint)
@@ -318,7 +318,7 @@ object PdfManualGenerator {
             )
 
             val sfxTools = listOf(
-                "• مؤثرات سبيستون الشهيرة:" to "أصوات اللمعان السحري، الضربات القتالية، الصدمة، الركض، وأصوات الحيوانات.",
+                "• مؤثرات الكرتون والأنمي الشهيرة:" to "أصوات اللمعان السحري، الضربات القتالية، الصدمة، الركض، وأصوات الحيوانات.",
                 "• إضافة المؤثرات للتايم لاين:" to "دمج المؤثر الصوتي في أي ثانية محددة من المشهد لتعزيز الإثارة."
             )
             drawToolList(canvas3, sfxTools, currentY + 45f, pageWidth - 50f, boldBodyPaint, bodyPaint)
@@ -377,7 +377,7 @@ object PdfManualGenerator {
             val outputDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "DubbingManual")
             if (!outputDir.exists()) outputDir.mkdirs()
 
-            val pdfFile = File(outputDir, "Dubbing_Studio_Complete_Guide_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.pdf")
+            val pdfFile = File(outputDir, "VoiceMaster_Pro_Guide_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.pdf")
             val fos = FileOutputStream(pdfFile)
             document.writeTo(fos)
             fos.flush()

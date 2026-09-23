@@ -2,8 +2,12 @@ package com.example.data
 
 import kotlinx.coroutines.flow.Flow
 
-class DubbingRepository(private val dao: DubbingDao) {
+class DubbingRepository(
+    private val dao: DubbingDao,
+    private val recordingDao: VoiceRecordingDao
+) {
     val allProjects: Flow<List<DubbingProject>> = dao.getAllProjects()
+    val allRecordings: Flow<List<VoiceRecordingEntity>> = recordingDao.getAllRecordings()
 
     suspend fun getProjectById(id: Long): DubbingProject? = dao.getProjectById(id)
 
@@ -21,5 +25,18 @@ class DubbingRepository(private val dao: DubbingDao) {
 
     suspend fun deleteById(id: Long) {
         dao.deleteById(id)
+    }
+
+    // Voice Recordings Operations
+    suspend fun saveVoiceRecording(recording: VoiceRecordingEntity): Long {
+        return recordingDao.insertRecording(recording)
+    }
+
+    suspend fun deleteVoiceRecording(recording: VoiceRecordingEntity) {
+        recordingDao.deleteRecording(recording)
+    }
+
+    suspend fun deleteVoiceRecordingById(id: Long) {
+        recordingDao.deleteById(id)
     }
 }

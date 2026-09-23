@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import com.example.audio.gemini.GeminiVideoAudioTranscriptionService
 import com.example.audio.stt.DetectedLanguageResult
 import com.example.audio.stt.GoogleCloudSpeechToTextService
 import com.example.audio.tts.CloudTtsPreferences
@@ -57,25 +58,25 @@ enum class AutoDubbingStyle(
     val primaryVoiceId: String,
     val categoryName: String
 ) {
-    SPACETOON_ANIME(
-        titleArabic = "سبيستون ومركز الزهرة الأسطوري 🌟",
-        descriptionArabic = "دبلجة فصحى أسطورية، نبرات أبطال ملحمية (شباب المستقبل) ومؤثرات سبيستون",
+    CLASSIC_ANIME(
+        titleArabic = "أنمي كلاسيكي ملحمي 🌟",
+        descriptionArabic = "دبلجة فصحى أسطورية، نبرات أبطال ملحمية ومؤثرات كلاسيكية",
         emoji = "🌟",
-        primaryVoiceId = "spacetoon_hero_male",
-        categoryName = "سبيستون"
+        primaryVoiceId = "hero_male",
+        categoryName = "أنمي كلاسيكي"
     ),
     JAPANESE_ANIME(
         titleArabic = "أنمي ياباني وقتال أبطال ⚔️",
-        descriptionArabic = "أداء كلاسيكي فصيح لمسلسلات الأنمي اليابانية (كونان، دراغون بول، ناروتو، أبطال الديجيتال)",
+        descriptionArabic = "أداء كلاسيكي فصيح لمسلسلات الأنمي اليابانية وأفلام الأكشن",
         emoji = "⚔️",
-        primaryVoiceId = "spacetoon_hero_male",
+        primaryVoiceId = "hero_male",
         categoryName = "أنمي ياباني"
     ),
     KOREAN_DRAMA(
         titleArabic = "دراما ومسلسلات كورية (K-Drama) 🇰🇷",
         descriptionArabic = "دبلجة سينمائية راقية للأفلام والمسلسلات الكورية بنبرات مشحونة بالمشاعر والرومانسية الفصحى",
         emoji = "🇰🇷",
-        primaryVoiceId = "spacetoon_heroine_female",
+        primaryVoiceId = "heroine_female",
         categoryName = "دراما كورية"
     ),
     AUTO_GENDER_DUB(
@@ -618,43 +619,44 @@ class AutoVideoDubberEngine(
             )
             delay(600)
 
-            // Step 2: Generate Contextual Script Lines for entire video duration in Target Language & Dialect
+            // Step 2: Extract real audio track & transcribe verbatim dialogue with Gemini STT
             val dialectNote = if (language == DubbingTargetLanguage.ARABIC) " [${dialect.displayNameArabic}]" else ""
             _state.value = _state.value.copy(
                 currentStep = AutoDubbingStep.GENERATING_SCRIPT,
                 progressFraction = 0.25f,
-                statusMessage = "2/4 • توليد سيناريو الدبلجة بالذكاء الاصطناعي بلغة ${language.flagEmoji} ${language.displayNameArabic}$dialectNote بنمط ${style.titleArabic}..."
+                statusMessage = "2/4 • استخراج وتفريغ الصوت الأصلي من الفيديو حرفياً وترجمته إلى ${language.flagEmoji} ${language.displayNameArabic}$dialectNote..."
             )
             delay(500)
 
-            val scriptLines = try {
-                if (language == DubbingTargetLanguage.ARABIC) {
-                    val tempClip = DubbingClip(
-                        id = "auto_vid_${System.currentTimeMillis()}",
-                        title = video.title,
-                        description = "دبلجة آلية بالذكاء الاصطناعي بنمط ${style.titleArabic}",
-                        category = style.titleArabic,
-                        durationSeconds = totalVideoSec,
-                        coverEmoji = style.emoji,
-                        primaryColor = 0xFF6366F1,
-                        scriptLines = emptyList(),
-                        videoUri = video.uriString,
-                        isImportedVideo = true,
-                        thumbnailPath = video.thumbnailPath
+            val videoFile = video.localFilePath?.let { File(it) }?.takeIf { it.exists() }
+            val transcriptionService = GeminiVideoAudioTranscriptionService(context)
+
+            val realTranscription = if (videoFile != null && video.hasAudio) {
+                try {
+                    transcriptionService.transcribeVideoAudio(
+                        videoFile = videoFile,
+                        targetDialect = dialect,
+                        targetLanguage = language,
+                        customPromptContext = "نمط الدبلجة المطلوب: ${style.titleArabic} - ${style.descriptionArabic}. استخرج كل كلمة منطوقة في الفيديو بدقة متناهية وترجمها بأسلوب متزامن."
                     )
-                    val geminiGen = GeminiAiScriptGenerator(context)
-                    val result = geminiGen.generateArabicDubbingScript(
-                        clip = tempClip,
-                        customPromptOrStyle = "نمط الدبلجة: ${style.titleArabic} - ${style.descriptionArabic}. مدة الفيديو الإجمالية: ${totalVideoSec} ثانية.",
-                        dialect = dialect
-                    )
-                    result.getOrNull()?.takeIf { it.isNotEmpty() } ?: generateScriptForVideo(video, style, pacing, language, dialect)
-                } else {
-                    generateScriptForVideo(video, style, pacing, language, dialect)
+                } catch (e: Exception) {
+                    null
                 }
-            } catch (_: Exception) {
-                generateScriptForVideo(video, style, pacing, language, dialect)
+            } else {
+                null
             }
+
+            if (realTranscription == null || realTranscription.segments.isEmpty()) {
+                _state.value = _state.value.copy(
+                    isProcessing = false,
+                    currentStep = AutoDubbingStep.ERROR,
+                    statusMessage = "لم يتم اكتشاف كلام منطوق في الملف الصوتي عبر خدمة STT",
+                    errorMessage = "فشل المعالجة الصوتية: لم يتم اكتشاف حوار مسموع داخل المسار الصوتي للفيديو بواسطة خدمة التعرف الصوتي (Speech-to-Text). يرجى التأكد من وضوح الصوت المنطوق داخل الفيديو وتفعيل مفتاح Gemini API."
+                )
+                return@withContext null
+            }
+
+            val scriptLines = realTranscription.segments.map { it.toScriptLine() }
             val totalSegs = scriptLines.size
 
             _state.value = _state.value.copy(
@@ -679,15 +681,15 @@ class AutoVideoDubberEngine(
             scriptLines.forEachIndexed { index, line ->
                 // Voice selection prioritized by speakerGender then voiceType
                 val chosenVoiceProfile = when (line.speakerGender) {
-                    "FEMALE" -> profiles.find { it.id == "spacetoon_heroine_female" } 
+                    "FEMALE" -> profiles.find { it.id == "heroine_female" } 
                         ?: profiles.find { it.id == "natural_arabic_female" } 
                         ?: profiles.first()
                     "CHILD" -> profiles.find { it.id == "cartoon_hero" } 
                         ?: profiles.first()
                     else -> when (line.voiceType) {
-                        "SPACETOON_HERO" -> profiles.find { it.id == "spacetoon_hero_male" } ?: profiles.find { it.id == "natural_arabic_male" } ?: profiles.first()
-                        "SPACETOON_HEROINE" -> profiles.find { it.id == "spacetoon_heroine_female" } ?: profiles.find { it.id == "natural_arabic_female" } ?: profiles.first()
-                        "SPACETOON_NARRATOR" -> profiles.find { it.id == "spacetoon_anime_narrator" } ?: profiles.find { it.id == "natural_arabic_male" } ?: profiles.first()
+                        "HERO_MALE" -> profiles.find { it.id == "hero_male" } ?: profiles.find { it.id == "natural_arabic_male" } ?: profiles.first()
+                        "HEROINE_FEMALE" -> profiles.find { it.id == "heroine_female" } ?: profiles.find { it.id == "natural_arabic_female" } ?: profiles.first()
+                        "EPIC_NARRATOR" -> profiles.find { it.id == "epic_narrator" } ?: profiles.find { it.id == "natural_arabic_male" } ?: profiles.first()
                         "FEMALE" -> profiles.find { it.id == "natural_arabic_female" } ?: profiles.first()
                         "CARTOON" -> profiles.find { it.id == "cartoon_hero" } ?: profiles.first()
                         "DRAMATIC" -> profiles.find { it.id == "male_narrator" } ?: profiles.first()
@@ -731,6 +733,9 @@ class AutoVideoDubberEngine(
                     // Fallback to local high-fidelity TTS if cloud synthesis wasn't used or failed
                     if (finalAudioPath == null) {
                         withContext(Dispatchers.Main) {
+                            if (!ttsManager.isEngineReady()) {
+                                ttsManager.awaitInitialization(3000L)
+                            }
                             var synthResultPath: String? = null
                             val syncLock = Object()
                             var isDone = false
@@ -750,8 +755,13 @@ class AutoVideoDubberEngine(
                             }
 
                             val startWait = System.currentTimeMillis()
-                            while (!isDone && (System.currentTimeMillis() - startWait < 2500)) {
-                                delay(40)
+                            while (!isDone && (System.currentTimeMillis() - startWait < 4500)) {
+                                delay(30)
+                            }
+                            if (synthResultPath == null) {
+                                val fallbackFile = File(context.cacheDir, "dub_fallback_${index}_${System.currentTimeMillis()}.wav")
+                                ttsManager.ensureValidWavFile(fallbackFile, durationSeconds = targetDuration)
+                                synthResultPath = fallbackFile.absolutePath
                             }
                             finalAudioPath = synthResultPath
                         }
@@ -810,7 +820,7 @@ class AutoVideoDubberEngine(
                 durationSeconds = video.durationSeconds,
                 coverEmoji = style.emoji,
                 primaryColor = when (style) {
-                    AutoDubbingStyle.SPACETOON_ANIME -> 0xFF2563EB
+                    AutoDubbingStyle.CLASSIC_ANIME -> 0xFF2563EB
                     AutoDubbingStyle.JAPANESE_ANIME -> 0xFF8B5CF6
                     AutoDubbingStyle.KOREAN_DRAMA -> 0xFFEC4899
                     AutoDubbingStyle.AUTO_GENDER_DUB -> 0xFF7C3AED
@@ -905,7 +915,7 @@ class AutoVideoDubberEngine(
         val numSegments = max(2, (totalSec / targetSegmentDuration).toInt())
 
         // Extended rich dictionary of narrative sentences across phases (Intro, Exposition, Climax, Detail, Conclusion)
-        val spacetoonPhases = when (language) {
+        val classicAnimePhases = when (language) {
             DubbingTargetLanguage.ENGLISH -> listOf(
                 listOf(
                     "On the planet of adventure, our heroes embark on an epic quest for glory!",
@@ -1419,21 +1429,21 @@ class AutoVideoDubberEngine(
             }
 
             val (speaker, avatar, voiceType, text) = when (style) {
-                AutoDubbingStyle.SPACETOON_ANIME -> {
-                    val phaseList = spacetoonPhases[minOf(phaseIndex, spacetoonPhases.size - 1)]
+                AutoDubbingStyle.CLASSIC_ANIME -> {
+                    val phaseList = classicAnimePhases[minOf(phaseIndex, classicAnimePhases.size - 1)]
                     val templateText = phaseList[i % phaseList.size]
                     when (i % 3) {
                         0 -> {
-                            val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Spacetoon Hero" else "بطل سبيستون (فصحى حماسية)"
-                            Quadruple(speakerName, "🦸", "SPACETOON_HERO", templateText)
+                            val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Epic Hero" else "بطل المغامرات (فصحى حماسية)"
+                            Quadruple(speakerName, "🦸", "HERO_MALE", templateText)
                         }
                         1 -> {
-                            val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Future Heroine" else "بطلة المستقبل (عذبة ومؤثرة)"
-                            Quadruple(speakerName, "🌸", "SPACETOON_HEROINE", templateText)
+                            val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Future Heroine" else "البطلة الشجاعة (عذبة ومؤثرة)"
+                            Quadruple(speakerName, "🌸", "HEROINE_FEMALE", templateText)
                         }
                         else -> {
-                            val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Legendary Narrator" else "راوي سبيستون الأسطوري"
-                            Quadruple(speakerName, "🌟", "SPACETOON_NARRATOR", templateText)
+                            val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Legendary Narrator" else "الراوي الملحمي الأسطوري"
+                            Quadruple(speakerName, "🌟", "EPIC_NARRATOR", templateText)
                         }
                     }
                 }
@@ -1443,7 +1453,7 @@ class AutoVideoDubberEngine(
                     when (i % 3) {
                         0 -> {
                             val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Anime Hero" else "بطل الأنمي الياباني (حسام)"
-                            Quadruple(speakerName, "⚔️", "SPACETOON_HERO", templateText)
+                            Quadruple(speakerName, "⚔️", "HERO_MALE", templateText)
                         }
                         1 -> {
                             val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Rival Warrior" else "المنافس الشجاع (كاي)"
@@ -1451,7 +1461,7 @@ class AutoVideoDubberEngine(
                         }
                         else -> {
                             val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "Anime Narrator" else "راوي الأنمي الأسطوري"
-                            Quadruple(speakerName, "🌟", "SPACETOON_NARRATOR", templateText)
+                            Quadruple(speakerName, "🌟", "EPIC_NARRATOR", templateText)
                         }
                     }
                 }
@@ -1463,7 +1473,7 @@ class AutoVideoDubberEngine(
                         Quadruple(speakerName, "👨‍💼", "MALE", templateText)
                     } else {
                         val speakerName = if (language == DubbingTargetLanguage.ENGLISH) "K-Drama Female Lead" else "البطلة الكورية (يون سو)"
-                        Quadruple(speakerName, "👩‍💼", "SPACETOON_HEROINE", templateText)
+                        Quadruple(speakerName, "👩‍💼", "HEROINE_FEMALE", templateText)
                     }
                 }
                 AutoDubbingStyle.AUTO_GENDER_DUB -> {
@@ -1523,7 +1533,7 @@ class AutoVideoDubberEngine(
             }
 
             val derivedGender = when {
-                voiceType in listOf("SPACETOON_HEROINE", "FEMALE") || avatar in listOf("👩", "👩‍💼", "🌸", "✨") -> "FEMALE"
+                voiceType in listOf("HEROINE_FEMALE", "FEMALE") || avatar in listOf("👩", "👩‍💼", "🌸", "✨") -> "FEMALE"
                 voiceType == "CARTOON" || avatar in listOf("🧒", "🐰", "🐱") -> "CHILD"
                 else -> "MALE"
             }

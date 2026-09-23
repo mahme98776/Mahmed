@@ -17,6 +17,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
+import java.io.FileInputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.Inet4Address
@@ -53,16 +55,29 @@ class AppUpdateWebServer(
                 val lanIp = getLocalIpAddress()
                 _serverUrl.value = "http://localhost:$port"
                 _lanUrl.value = "http://$lanIp:$port"
-                Log.d("AppUpdateWebServer", "mody.org server started at ${_lanUrl.value}")
+                Log.d("AppUpdateWebServer", "voicemaster.org server started at ${_lanUrl.value}")
 
                 while (isActive && serverSocket?.isClosed == false) {
-                    val clientSocket = serverSocket?.accept() ?: break
+                    val clientSocket = try {
+                        serverSocket?.accept() ?: break
+                    } catch (e: java.net.SocketException) {
+                        break
+                    } catch (e: Exception) {
+                        if (serverSocket?.isClosed == true || !isActive) break
+                        throw e
+                    }
                     scope.launch {
                         handleClient(clientSocket)
                     }
                 }
+            } catch (e: java.net.SocketException) {
+                Log.d("AppUpdateWebServer", "Server socket closed gracefully: ${e.message}")
             } catch (e: Exception) {
-                Log.e("AppUpdateWebServer", "Server error: ${e.message}", e)
+                if (serverSocket?.isClosed == true || !isActive) {
+                    Log.d("AppUpdateWebServer", "Server stopped.")
+                } else {
+                    Log.e("AppUpdateWebServer", "Server error: ${e.message}", e)
+                }
             } finally {
                 _isRunning.value = false
             }
@@ -133,8 +148,8 @@ class AppUpdateWebServer(
 
     private fun routeRequest(method: String, path: String, body: String, out: OutputStream) {
         when {
-            // 1. User Web Portal (mody.org landing page)
-            (method == "GET" && (path == "/" || path == "/user" || path == "/updates" || path == "/index.html" || path == "/mody")) -> {
+            // 1. User Web Portal (voicemaster.org landing page)
+            (method == "GET" && (path == "/" || path == "/user" || path == "/updates" || path == "/index.html" || path == "/voicemaster")) -> {
                 val latest = updateManager.latestRelease.value ?: updateManager.releases.value.first()
                 val html = WebPortalHtmlTemplates.generateUserPortalHtml(
                     latestRelease = latest,
@@ -144,16 +159,12 @@ class AppUpdateWebServer(
                 sendHtmlResponse(out, 200, html)
             }
 
-            // 2. Developer Web Portal (HTML Admin Dashboard)
-            (method == "GET" && (path == "/developer" || path == "/admin" || path == "/dev")) -> {
-                val html = WebPortalHtmlTemplates.generateDeveloperPortalHtml(
-                    releases = updateManager.releases.value,
-                    serverUrl = _lanUrl.value
-                )
-                sendHtmlResponse(out, 200, html)
+            // 2. Redirect legacy paths to user portal
+            (method == "GET" && (path == "/developer" || path == "/admin" || path == "/dev" || path == "/mody")) -> {
+                sendRedirect(out, "/user")
             }
 
-            // 3. API - Publish Update (Upload APK details from Developer)
+            // 3. API - Publish Update
             (method == "POST" && path == "/api/publish-update") -> {
                 handlePublishUpdate(body, out)
             }
@@ -209,7 +220,7 @@ class AppUpdateWebServer(
                 val targetRelease = updateManager.releases.value.find { it.id == releaseId }
                 updateManager.incrementDownloadCount(releaseId)
                 val fileName = targetRelease?.apkFileName?.ifBlank { null }
-                    ?: "mody-dubbing-${targetRelease?.versionName ?: "latest"}.apk"
+                    ?: "voicemaster-pro-${targetRelease?.versionName ?: "latest"}.apk"
                 sendApkFileResponse(out, fileName)
             }
 
@@ -227,16 +238,16 @@ class AppUpdateWebServer(
     private fun handlePublishUpdate(body: String, out: OutputStream) {
         try {
             val params = parseUrlEncodedForm(body)
-            val versionName = params["versionName"] ?: "1.3.0"
+            val versionName = params["versionName"] ?: "2.7.0"
             val versionCode = params["versionCode"]?.toIntOrNull() ?: (updateManager.releases.value.maxOfOrNull { it.versionCode } ?: 1) + 1
             val releaseTitle = params["releaseTitle"] ?: "تحديث جديد"
-            val releaseNotesArabic = params["releaseNotesArabic"] ?: "تحسينات عامة على استوديو الدبلجة."
+            val releaseNotesArabic = params["releaseNotesArabic"] ?: "تحسينات عامة على فويس ماستر برو."
             val channelStr = params["channel"] ?: "STABLE"
             val channel = try { ReleaseChannel.valueOf(channelStr) } catch (e: Exception) { ReleaseChannel.STABLE }
             val apkSizeMb = params["apkSizeMb"]?.toDoubleOrNull() ?: 18.5
             val downloadUrl = params["downloadUrl"] ?: "/download/latest.apk"
             val isCritical = params["isCritical"] == "true"
-            val apkFileName = params["apkFileName"] ?: "mody-dubbing-v$versionName.apk"
+            val apkFileName = params["apkFileName"] ?: "voicemaster-pro-v$versionName.apk"
 
             updateManager.publishNewRelease(
                 versionName = versionName,
@@ -250,8 +261,8 @@ class AppUpdateWebServer(
                 apkFileName = apkFileName
             )
 
-            // Redirect back to developer portal
-            sendRedirect(out, "/developer")
+            // Redirect back to user portal
+            sendRedirect(out, "/user")
         } catch (e: Exception) {
             sendHtmlResponse(out, 400, "<h1>خطأ في نشر التحديث: ${e.message}</h1>")
         }
@@ -264,9 +275,9 @@ class AppUpdateWebServer(
             if (!releaseId.isNullOrBlank()) {
                 updateManager.deleteRelease(releaseId)
             }
-            sendRedirect(out, "/developer")
+            sendRedirect(out, "/user")
         } catch (e: Exception) {
-            sendRedirect(out, "/developer")
+            sendRedirect(out, "/user")
         }
     }
 
@@ -333,16 +344,22 @@ class AppUpdateWebServer(
 
     private fun sendApkFileResponse(out: OutputStream, fileName: String) {
         try {
-            val dummyApkBytes = "MODY_ORG_APK_PACKAGE_DUBBING_STUDIO_BYTES_VALID_INSTALL".toByteArray(StandardCharsets.UTF_8)
-            val header = "HTTP/1.1 200 OK\r\n" +
-                    "Content-Type: application/vnd.android.package-archive\r\n" +
-                    "Content-Disposition: attachment; filename=\"$fileName\"\r\n" +
-                    "Content-Length: ${dummyApkBytes.size}\r\n" +
-                    "Connection: close\r\n" +
-                    "\r\n"
-            out.write(header.toByteArray(StandardCharsets.UTF_8))
-            out.write(dummyApkBytes)
-            out.flush()
+            val sourceApk = File(context.applicationInfo.sourceDir)
+            if (sourceApk.exists() && sourceApk.length() > 0) {
+                val header = "HTTP/1.1 200 OK\r\n" +
+                        "Content-Type: application/vnd.android.package-archive\r\n" +
+                        "Content-Disposition: attachment; filename=\"$fileName\"\r\n" +
+                        "Content-Length: ${sourceApk.length()}\r\n" +
+                        "Connection: close\r\n" +
+                        "\r\n"
+                out.write(header.toByteArray(StandardCharsets.UTF_8))
+                FileInputStream(sourceApk).use { input ->
+                    input.copyTo(out)
+                }
+                out.flush()
+            } else {
+                sendNotFound(out)
+            }
         } catch (e: Exception) {
             // Client closed stream prematurely
         }
@@ -362,7 +379,7 @@ class AppUpdateWebServer(
     }
 
     private fun sendNotFound(out: OutputStream) {
-        val body = "<h1>404 Page Not Found - mody.org</h1>"
+        val body = "<h1>404 Page Not Found - voicemaster.org</h1>"
         sendHtmlResponse(out, 404, body)
     }
 

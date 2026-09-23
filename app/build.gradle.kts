@@ -17,8 +17,8 @@ android {
     applicationId = "com.aistudio.dubstudio.dxkpqz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 4
+    versionName = "2.7.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -91,7 +91,7 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
-  // implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -101,15 +101,17 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
-
-  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
-  // Sign-In via Credential Manager:
-  // implementation(libs.firebase.auth)
-  // implementation(libs.androidx.credentials)
-  // implementation(libs.androidx.credentials.play.services)
-  // implementation(libs.googleid)
+  implementation(libs.firebase.config)
+  implementation(libs.google.generativeai)
+  implementation(libs.firebase.firestore)
+  implementation(libs.firebase.auth)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
+  implementation(libs.androidx.biometric)
+  implementation(libs.androidx.media3.exoplayer)
+  implementation(libs.androidx.media3.common)
+  implementation(libs.androidx.media3.ui)
   implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
@@ -135,5 +137,43 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
+  // "ksp"(libs.moshi.kotlin.codegen) - Using Moshi KotlinJsonAdapterFactory at runtime to avoid IDE IntelliJ KSP event queue crashes
 }
+
+tasks.register("incrementVersion") {
+  description = "Automatically increments the versionCode and patch versionName in app/build.gradle.kts"
+  group = "versioning"
+  doLast {
+    val buildFile = file("build.gradle.kts")
+    val content = buildFile.readText()
+
+    val versionCodeRegex = Regex("""versionCode\s*=\s*(\d+)""")
+    val versionNameRegex = Regex("""versionName\s*=\s*"([^"]+)"""")
+
+    val vcMatch = versionCodeRegex.find(content)
+    val vnMatch = versionNameRegex.find(content)
+
+    if (vcMatch != null && vnMatch != null) {
+      val oldCode = vcMatch.groupValues[1].toInt()
+      val newCode = oldCode + 1
+
+      val oldName = vnMatch.groupValues[1]
+      val parts = oldName.split(".").map { it.toIntOrNull() ?: 0 }
+      val newName = when (parts.size) {
+        1 -> "${parts[0]}.1"
+        2 -> "${parts[0]}.${parts[1] + 1}"
+        else -> "${parts[0]}.${parts[1]}.${parts[2] + 1}"
+      }
+
+      var updatedContent = versionCodeRegex.replaceFirst(content, "versionCode = $newCode")
+      updatedContent = versionNameRegex.replaceFirst(updatedContent, """versionName = "$newName"""")
+      buildFile.writeText(updatedContent)
+      println("Auto Version Increment: Code $oldCode -> $newCode | Name $oldName -> $newName")
+    }
+  }
+}
+
+tasks.matching { it.name in listOf("assembleRelease", "bundleRelease", "packageRelease") }.configureEach {
+  dependsOn("incrementVersion")
+}
+

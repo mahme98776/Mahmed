@@ -1,7 +1,12 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +22,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DarkMode
@@ -33,6 +42,21 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.example.ui.components.OnboardingHelpDialog
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,6 +73,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,6 +83,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,13 +101,21 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
 import com.example.ui.DubbingViewModel
+import com.example.ui.components.VersionInfoCard
+import com.example.BuildConfig
 
 @Composable
 fun SettingsScreen(
     viewModel: DubbingViewModel,
     onNavigateBack: () -> Unit = {},
-    onNavigateToUpdateCenter: () -> Unit = {}
+    onNavigateToUpdateCenter: () -> Unit = {},
+    onNavigateToDeveloperPortal: () -> Unit = {},
+    onNavigateToSecurityDashboard: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
+    onSignOut: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
     val appLanguage by viewModel.currentAppLanguage.collectAsStateWithLifecycle()
     val exportConfig by viewModel.videoExportConfig.collectAsStateWithLifecycle()
@@ -88,9 +123,14 @@ fun SettingsScreen(
     val savedGeminiKey by viewModel.geminiApiKey.collectAsStateWithLifecycle()
     val isServerRunning by viewModel.updateWebServer.isRunning.collectAsStateWithLifecycle()
     val lanUrl by viewModel.updateWebServer.lanUrl.collectAsStateWithLifecycle()
+    val userProfile by viewModel.authService.userProfile.collectAsStateWithLifecycle()
+    val isSyncing by viewModel.authService.isSyncing.collectAsStateWithLifecycle()
+    val syncStatus by viewModel.authService.syncStatus.collectAsStateWithLifecycle()
+    val userSettings by viewModel.userSettings.collectAsStateWithLifecycle()
 
     var keyInputText by remember(savedGeminiKey) { mutableStateOf(savedGeminiKey) }
     var showAllLanguages by remember { mutableStateOf(false) }
+    var showOnboardingDialogInSettings by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -155,6 +195,136 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // 1.5 Google Account & Gemini Cloud Computing Card
+        item {
+            SettingsCategoryCard(
+                title = "حساب Google والحوسبة السحابية لـ Gemini ☁️",
+                icon = Icons.Default.Cloud,
+                accentColor = Color(0xFF1A73E8)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF4285F4).copy(alpha = 0.15f),
+                            modifier = Modifier.size(46.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1A73E8),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = userProfile.displayName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = userProfile.email,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = if (userProfile.isGeminiCloudSaved) "محفوظ ومزامن في حوسبة Gemini السحابية ☁️✓" else "جلسة محلية",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (userProfile.isGeminiCloudSaved) Color(0xFF34A853) else MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "⚡ الباقة السحابية: ${userProfile.geminiCloudTier}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "📁 عدد المشاريع السحابية: ${userProfile.totalCloudProjects} مشاريع محفوظة",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (syncStatus.isNotBlank()) {
+                                Text(
+                                    text = "الحالة: $syncStatus",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onNavigateToProfile,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF1A73E8)
+                            )
+                        ) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("واجهة حسابي (Profile)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    viewModel.authService.saveUserToGeminiCloudComputing(userProfile)
+                                    Toast.makeText(context, "تمت المزامنة وحفظ الحساب في سحابة Gemini بنجاح ☁️", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = !isSyncing,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("مزامنة سحابية 🔄", fontSize = 12.sp)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.authService.signOut()
+                            onSignOut()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.Default.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("تسجيل الخروج / تبديل الحساب 🚪", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -345,6 +515,252 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.toggleAutoVoiceRecognition(it) }
                     )
                 }
+
+                Divider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // --- Jetpack DataStore Persistent Preferences ---
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "تفضيلات المستخدم المحفوظة محلياً عبر DataStore ⚡",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // 1. Default Speech Rate (DataStore)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "سرعة نطق الصوت الافتراضية (Speech Rate)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "${String.format(java.util.Locale.US, "%.2f", userSettings.speechRate)}x",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "يتم حفظ وتطبيق سرعة الصوت تلقائياً لجميع عمليات الدبلجة واسترجاعها عند فتح التطبيق",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Slider(
+                        value = userSettings.speechRate,
+                        onValueChange = { viewModel.updateSpeechRate(it) },
+                        valueRange = 0.5f..2.0f,
+                        steps = 14
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            0.85f to "0.85x هادئ",
+                            1.00f to "1.00x قياسي",
+                            1.25f to "1.25x متوسط",
+                            1.50f to "1.50x سريع"
+                        ).forEach { (rate, label) ->
+                            OutlinedButton(
+                                onClick = { viewModel.updateSpeechRate(rate) },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = if (Math.abs(userSettings.speechRate - rate) < 0.05f) {
+                                    ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                                } else {
+                                    ButtonDefaults.outlinedButtonColors()
+                                }
+                            ) {
+                                Text(label, fontSize = 10.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+
+                Divider(Modifier.padding(vertical = 10.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // 2. Default Voice Pitch (DataStore)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "نبرة الصوت الافتراضية (Voice Pitch)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "${String.format(java.util.Locale.US, "%.2f", userSettings.voicePitch)}x",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "ضبط حدة أو عمق النبرة الصوتية وحفظها بشكل دائم في DataStore",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Slider(
+                        value = userSettings.voicePitch,
+                        onValueChange = { viewModel.updateVoicePitch(it) },
+                        valueRange = 0.6f..1.5f,
+                        steps = 8
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            0.85f to "0.85x عميق",
+                            1.00f to "1.00x طبيعي",
+                            1.20f to "1.20x حاد"
+                        ).forEach { (pitch, label) ->
+                            OutlinedButton(
+                                onClick = { viewModel.updateVoicePitch(pitch) },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = if (Math.abs(userSettings.voicePitch - pitch) < 0.05f) {
+                                    ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                                } else {
+                                    ButtonDefaults.outlinedButtonColors()
+                                }
+                            ) {
+                                Text(label, fontSize = 10.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Action Buttons: Test Voice & Reset DataStore
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val baseProfile = viewModel.ttsManager.voiceProfiles.firstOrNull() ?: com.example.audio.VoiceProfile(
+                                id = "preview_voice",
+                                titleArabic = "صوت تجريبي",
+                                subtitleArabic = "اختبار DataStore",
+                                emoji = "🎙️",
+                                pitch = 1.0f,
+                                speechRate = 1.0f
+                            )
+                            val customProfile = baseProfile.copy(
+                                pitch = userSettings.voicePitch,
+                                speechRate = userSettings.speechRate
+                            )
+                            viewModel.ttsManager.speakText(
+                                text = "مرحباً بك في فويس ماستر برو، هذه تجربة للسرعة والنبرة المحفوظة عبر داتاستور",
+                                profile = customProfile
+                            )
+                        },
+                        modifier = Modifier.weight(1.3f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("تجربة الصوت 🔊", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.resetUserSettings() },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("استعادة الافتراضي", fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+            }
+        }
+
+        // Local / Remote Python Lingo Dubbing Server Settings Card
+        item {
+            com.example.ui.components.LingoServerSettingsCard(
+                viewModel = viewModel,
+                userSettings = userSettings
+            )
+        }
+
+        // Help & Onboarding Walkthrough Category Card
+        item {
+            SettingsCategoryCard(
+                title = "دليل الاستخدام والترحيب الشامل 💡",
+                icon = Icons.Default.Info,
+                accentColor = Color(0xFF00E5FF)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "دليل تفاعلي متكامل يشرح بالتفصيل خطوات استخدام التطبيق، هندسة الترددات الصوتية بالذكاء الاصطناعي، وخفض صوت الخلفية تلقائياً للمستخدمين الجدد.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 17.sp
+                    )
+                    Button(
+                        onClick = { showOnboardingDialogInSettings = true },
+                        modifier = Modifier.fillMaxWidth().testTag("btn_open_onboarding_from_settings"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = Color(0xFF0C1726))
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("فتح جولة الترحيب والتعليمات التفاعلية 🚀", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                    }
+                }
             }
         }
 
@@ -355,19 +771,66 @@ fun SettingsScreen(
                 icon = Icons.Default.Key,
                 accentColor = Color(0xFF6750A4)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "يُستخدم لتوليد سيناريوهات الدبلجة العربية الاحترافية بدقة المزامنة التامة، مع دعم الحفظ الدائم على الجهاز.",
+                        text = "يُستخدم مفتاح الذكاء الاصطناعي لتشغيل خدمات التفريغ الصوتي الفائق STT، الترجمة الاحترافية، والذكاء الاصطناعي. هذا المفتاح خاص بك تماماً ومحفوظ محلياً فقط على جهازك بدون أي مشاركة.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 17.sp
                     )
 
+                    // Step-by-step Guide Card
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF6750A4).copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, Color(0xFF6750A4).copy(alpha = 0.25f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "📖 خطوات الحصول على مفتاحك المجاني في دقيقة واحدة:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF381E72)
+                            )
+                            Text(
+                                text = "1️⃣ اضغط على الزر أدناه لفتح منصة Google AI Studio الرسمية.\n2️⃣ سجل الدخول بحساب Google ثم انقر على «Create API key».\n3️⃣ انسخ المفتاح الذي يبدأ بـ AIza... والصقه في المربع أدناه ثم اضغط حفظ.",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 17.sp
+                            )
+                        }
+                    }
+
+                    // Direct Link Button to Google AI Studio
+                    Button(
+                        onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B6EBB)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("open_aistudio_apikey_btn")
+                    ) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("🔗 إنشاء مفتاحك المجاني من Google AI Studio", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                    }
+
                     OutlinedTextField(
                         value = keyInputText,
                         onValueChange = { keyInputText = it },
-                        label = { Text("Gemini API Key") },
-                        placeholder = { Text("AQ.Ab8RN6KgYBCKjgE9...") },
+                        label = { Text("أدخل مفتاح Gemini API الخاص بك") },
+                        placeholder = { Text("AIzaSy...") },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -392,42 +855,42 @@ fun SettingsScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4)),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(40.dp)
+                                .height(42.dp)
                                 .testTag("save_gemini_key_btn")
                         ) {
                             Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("حفظ المفتاح دائماً ✅", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("حفظ وتفعيل المفتاح ✅", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
-                        if (keyInputText != "AQ.Ab8RN6KgYBCKjgE9alN3jLNuL5Wm1qx-U9BIu6DioS1zBQNezw") {
+                        if (keyInputText.isNotBlank()) {
                             OutlinedButton(
                                 onClick = {
-                                    keyInputText = "AQ.Ab8RN6KgYBCKjgE9alN3jLNuL5Wm1qx-U9BIu6DioS1zBQNezw"
-                                    viewModel.updateGeminiApiKey(keyInputText)
+                                    keyInputText = ""
+                                    viewModel.updateGeminiApiKey("")
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(40.dp)
+                                modifier = Modifier.height(42.dp)
                             ) {
-                                Text("استعادة المفتاح 🔄", fontSize = 11.sp)
+                                Text("مسح 🗑️", fontSize = 11.sp)
                             }
                         }
                     }
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFE8DEF8).copy(alpha = 0.5f),
+                        color = if (keyInputText.isNotBlank()) Color(0xFFD7E8CD) else Color(0xFFFDE8E8),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "حالة المفتاح: " + if (keyInputText.isNotBlank()) "مسجل ومحفوظ بشكل دائم 🔒🟢" else "غير مضبوط ⚠️",
+                                text = if (keyInputText.isNotBlank()) "حالة المفتاح: مسجل ومحفوظ محلياً على جهازك 🔒🟢" else "حالة المفتاح: غير مضبوط (يمكنك إنشاء مفتاح مجاني بالزر أعلاه) ⚠️",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF381E72)
+                                color = if (keyInputText.isNotBlank()) Color(0xFF1E4620) else Color(0xFF8A1F1D)
                             )
                         }
                     }
@@ -579,107 +1042,180 @@ fun SettingsScreen(
             }
         }
 
-        // 7. Product Updates & Web Portal Center
+        // 7. Version Info & Product Updates Center
         item {
-            SettingsCategoryCard(
-                title = "تحديثات المنتج ومواقع الويب 🚀",
-                icon = Icons.Default.SystemUpdate,
-                accentColor = Color(0xFF7C4DFF)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "نظام تحديثات متكامل يتيح للمستخدم فحص وتنزيل أحدث الإصدارات، مع موقع ويب للمستخدم ولوحة تحكم للمطور لإطلاق التحديثات عبر الشبكة.",
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            VersionInfoCard(
+                viewModel = viewModel,
+                onNavigateToUpdateCenter = onNavigateToUpdateCenter
+            )
+        }
 
+        // 8. Unified Device Security & Developer Portal (Exclusive to Developer mahme98776@gmail.com)
+        if (userProfile.email.trim().lowercase() == "mahme98776@gmail.com") {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToSecurityDashboard() }
+                        .testTag("settings_security_dashboard_entry_card"),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                    border = BorderStroke(1.5.dp, Color(0xFFFFD54F).copy(alpha = 0.8f))
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFFFFD54F).copy(alpha = 0.2f),
+                            border = BorderStroke(1.dp, Color(0xFFFFD54F)),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFD54F),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "أمان الأجهزة وبوابة التطوير 🛡️👑",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = Color(0xFFFFD54F)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFF22C55E).copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = "خاص بالمطور ⚡",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF22C55E),
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(3.dp))
                             Text(
-                                text = "حالة خادم الويب: " + if (isServerRunning) "شغال 🟢 ($lanUrl)" else "متوقف 🔴",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isServerRunning) Color(0xFF4CAF50) else Color(0xFFE53935)
+                                text = "لوحة التحكم الخاصة بالمطور: رادار صد الهجمات وتتبع أجهزة Firebase Auth، طباعة التقارير، وأدوات المطور وفحص المحركات",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFFCBD5E1),
+                                lineHeight = 14.sp
                             )
                         }
-                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = onNavigateToUpdateCenter,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .height(42.dp)
-                                .testTag("open_update_center_btn")
-                        ) {
-                            Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("مركز التحديثات والويب 🌐", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        OutlinedButton(
-                            onClick = { viewModel.checkForAppUpdates() },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .weight(0.9f)
-                                .height(42.dp)
-                                .testTag("quick_check_updates_btn")
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("فحص الآن 🔄", fontSize = 11.5.sp)
-                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD54F),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }
         }
 
-        // 8. About App & Version
+        // 9. About App & Intellectual Property Copyright
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "AI Video & Voice Studio • v2.6 Ultra Pro",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "فويس ماستر برو | VoiceMaster Pro v2.6",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.5.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(10.dp))
                     Text(
-                        text = "محرك دبلجة فيديو فوري متعدد اللغات مع الذكاء الاصطناعي وموازنة الصوت ومزامنة الشفاه",
+                        text = "استوديو الدبلجة وهندسة الصوت الاحترافي بالذكاء الاصطناعي مع معالجة ومزامنة الفيديو الفورية",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "⚖️ جميع حقوق الملكية الفكرية والنشر محفوظة © 2026",
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = "من أنشأ هذا البرنامج هو: محمد سليمة (محمد رضا محمود محمود السيد سليمة)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "📍 مصر - محافظة المنوفية - شبين الكوم - شارع القفاص",
+                        fontSize = 10.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
+    }
+
+    if (showOnboardingDialogInSettings) {
+        OnboardingHelpDialog(
+            onDismiss = { showOnboardingDialogInSettings = false },
+            onComplete = { dontShowAgain ->
+                showOnboardingDialogInSettings = false
+                if (dontShowAgain) {
+                    coroutineScope.launch {
+                        viewModel.userSettingsDataStore.updateHasSeenOnboarding(true)
+                    }
+                }
+            }
+        )
     }
 }
 

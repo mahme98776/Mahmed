@@ -482,7 +482,7 @@ private fun SyncTopHeaderBar(
                     .height(36.dp)
                     .testTag("back_to_studio_btn")
             ) {
-                Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(15.dp))
+                Icon(Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(4.dp))
                 Text("الاستوديو", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }

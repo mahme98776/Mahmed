@@ -102,7 +102,8 @@ data class ExportDialogUiState(
     val progress: Float = 0f,
     val statusMessage: String = "",
     val successResult: ExportResult.Success? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val initialFormat: ExportFormat = ExportFormat.MP4_VIDEO
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -119,10 +120,10 @@ fun ExportProjectDialog(
     if (!state.isVisible) return
 
     val defaultTitle = remember(state.project, state.clip) {
-        state.project?.title ?: state.clip?.let { "دبلجة ${it.title}" } ?: "مشروع_دبلجة"
+        state.project?.title ?: state.clip?.let { "دبلجة_${it.title}" } ?: "مشروع_دبلجة"
     }
     var fileNameInput by remember(defaultTitle) { mutableStateOf(defaultTitle) }
-    var selectedFormat by remember { mutableStateOf(ExportFormat.MP4_VIDEO) }
+    var selectedFormat by remember(state.initialFormat) { mutableStateOf(state.initialFormat) }
     var videoConfig by remember { mutableStateOf(initialVideoConfig) }
     var showAdvancedQualitySettings by remember { mutableStateOf(true) }
 
@@ -246,7 +247,9 @@ fun ExportProjectDialog(
                                         Text(
                                             text = if (result.format == ExportFormat.MP4_VIDEO)
                                                 "فيديو MP4 بدقة ${videoConfig.resolution.badge} (${videoConfig.getBitrateMbpsFormatted()})"
-                                            else "ملف صوتي MP3 عالي النقاء",
+                                            else if (result.fileName.endsWith(".wav", ignoreCase = true))
+                                                "مسار صوتي متزامن WAV Master (44.1kHz)"
+                                            else "مسار صوتي مدبلج MP3 عالي النقاء",
                                             color = Color(0xFFA6D4A8),
                                             fontSize = 11.sp
                                         )
@@ -282,7 +285,10 @@ fun ExportProjectDialog(
                                 }
 
                                 Text(
-                                    text = "الملف متاح الآن في معرض الفيديوهات ومدير الملفات بالهاتف.",
+                                    text = if (result.format == ExportFormat.MP4_VIDEO)
+                                        "الفيديو متاح الآن في مجلد الأفلام (Movies/VoiceMasterPro) ومعرض الهاتف."
+                                    else
+                                        "المسار الصوتي متاح الآن في مجلد الموسيقى (Music/VoiceMasterPro) وتطبيقات الصوت.",
                                     color = Color(0xFFCAC4D0),
                                     fontSize = 11.sp
                                 )
@@ -519,13 +525,13 @@ fun ExportProjectDialog(
                                         }
                                     }
                                     Text(
-                                        text = "صوت MP3 🎵",
+                                        text = "مسار صوتي متزامن 🎵",
                                         color = Color(0xFFE6E1E5),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        text = "ملف صوتي سريع للمشاركة",
+                                        text = "حفظ كملف صوتي مستقل في الجهاز (Music)",
                                         color = Color(0xFF938F99),
                                         fontSize = 9.sp,
                                         lineHeight = 12.sp
@@ -1035,7 +1041,7 @@ fun ExportProjectDialog(
                         Text(
                             text = if (selectedFormat == ExportFormat.MP4_VIDEO)
                                 "تصدير فيديو ${videoConfig.resolution.badge}"
-                            else "تصدير كصوت MP3",
+                            else "تصدير مسار الصوت المتزامن 🎵",
                             fontWeight = FontWeight.Bold
                         )
                     }

@@ -25,11 +25,6 @@ data class SoundEffectItem(
 object SoundEffectsGenerator {
 
     val soundEffectsList: List<SoundEffectItem> = listOf(
-        SoundEffectItem("spacetoon_hero_entry", "دخول بطل سبيستون", "🦸", "لحن حماسي ملحمي لدخول بطل سبيستون", 0xFF10B981),
-        SoundEffectItem("spacetoon_power", "طاقة سبيستون الخارقة", "⚡", "صوت وميض وهالة طاقة خارقة للأنمي", 0xFFF59E0B),
-        SoundEffectItem("spacetoon_fight", "ضربة قتال وسيف أنمي", "⚔️", "صوت التحام السيوف وضربات الأكشن", 0xFFEF4444),
-        SoundEffectItem("spacetoon_laser", "شعاع ليزر وسحر", "🔮", "صوت إطلاق شعاع سحري وقوى خارقة", 0xFF8B5CF6),
-        SoundEffectItem("spacetoon_sting", "فاصل سبيستون النغمي", "✨", "فاصل كلاسيكي جميل بين مشاهد الكرتون", 0xFF06B6D4),
         SoundEffectItem("applause", "تصفيق حار", "👏", "مؤثر تصفيق للجمهور والاحتفال", 0xFF14B8A6),
         SoundEffectItem("laugh", "ضحكات كوميدية", "😂", "مؤثر ضحك للمشاهد المضحكة", 0xFFF59E0B),
         SoundEffectItem("boom", "انفجار سينمائي", "💥", "ضربة درامية قوية للمشاهد المثيرة", 0xFFEF4444),
@@ -97,11 +92,6 @@ object SoundEffectsGenerator {
 
     private fun generateSfxPcm(effectId: String): ShortArray {
         return when (effectId) {
-            "spacetoon_hero_entry" -> generateSpacetoonHeroEntry()
-            "spacetoon_power" -> generateSpacetoonPower()
-            "spacetoon_fight" -> generateSpacetoonFight()
-            "spacetoon_laser" -> generateSpacetoonLaser()
-            "spacetoon_sting" -> generateSpacetoonSting()
             "applause" -> generateApplause()
             "laugh" -> generateLaugh()
             "boom" -> generateBoom()
@@ -112,94 +102,6 @@ object SoundEffectsGenerator {
             "radio_beep" -> generateRadioBeep()
             else -> generateDing()
         }
-    }
-
-    private fun generateSpacetoonHeroEntry(): ShortArray {
-        val durationMs = 1800
-        val numSamples = (sampleRate * durationMs / 1000)
-        val buffer = ShortArray(numSamples)
-        // Spacetoon iconic brass/synth hero fanfare chords: D4 -> G4 -> A4 -> D5
-        val notes = listOf(293.66, 392.00, 440.00, 587.33)
-        val step = numSamples / 4
-        for (i in 0 until numSamples) {
-            val noteIndex = (i / step).coerceIn(0, notes.size - 1)
-            val freq = notes[noteIndex]
-            val t = i.toDouble() / sampleRate
-            val noteTime = (i % step).toDouble() / sampleRate
-            val env = exp(-2.2 * noteTime)
-            // Rich harmonic synth brass
-            val sample = (sin(2 * PI * freq * t) * 0.5 + sin(4 * PI * freq * t) * 0.3 + sin(6 * PI * freq * t) * 0.15) * env
-            buffer[i] = (sample * 27000).toInt().coerceIn(-32767, 32767).toShort()
-        }
-        return buffer
-    }
-
-    private fun generateSpacetoonPower(): ShortArray {
-        val durationMs = 1200
-        val numSamples = (sampleRate * durationMs / 1000)
-        val buffer = ShortArray(numSamples)
-        for (i in 0 until numSamples) {
-            val t = i.toDouble() / sampleRate
-            // Rising energetic pitch sweep + energy modulation
-            val pitch = 220.0 + 800.0 * (t / 1.2) + sin(2 * PI * 24.0 * t) * 80.0
-            val env = sin(PI * (t / 1.2))
-            val sparkle = sin(2 * PI * 1800.0 * t) * 0.2
-            val sample = (sin(2 * PI * pitch * t) * 0.7 + sparkle) * env
-            buffer[i] = (sample * 28000).toInt().coerceIn(-32767, 32767).toShort()
-        }
-        return buffer
-    }
-
-    private fun generateSpacetoonFight(): ShortArray {
-        val durationMs = 900
-        val numSamples = (sampleRate * durationMs / 1000)
-        val buffer = ShortArray(numSamples)
-        for (i in 0 until numSamples) {
-            val t = i.toDouble() / sampleRate
-            val decay = exp(-4.5 * t)
-            // Metallic sword clank + impact
-            val metallic1 = sin(2 * PI * 2400.0 * t) * 0.4
-            val metallic2 = sin(2 * PI * 3600.0 * t) * 0.3
-            val impact = sin(2 * PI * 140.0 * t) * 0.5
-            val noise = (Random.nextDouble() * 2.0 - 1.0) * exp(-9.0 * t) * 0.4
-            val sample = (metallic1 + metallic2 + impact + noise) * decay
-            buffer[i] = (sample * 29000).toInt().coerceIn(-32767, 32767).toShort()
-        }
-        return buffer
-    }
-
-    private fun generateSpacetoonLaser(): ShortArray {
-        val durationMs = 750
-        val numSamples = (sampleRate * durationMs / 1000)
-        val buffer = ShortArray(numSamples)
-        for (i in 0 until numSamples) {
-            val t = i.toDouble() / sampleRate
-            val decay = exp(-3.2 * t)
-            // Fast downwards sweeping laser beam
-            val freq = 2600.0 * exp(-4.0 * t) + 300.0
-            val sample = sin(2 * PI * freq * t) * decay
-            buffer[i] = (sample * 28000).toInt().coerceIn(-32767, 32767).toShort()
-        }
-        return buffer
-    }
-
-    private fun generateSpacetoonSting(): ShortArray {
-        val durationMs = 1100
-        val numSamples = (sampleRate * durationMs / 1000)
-        val buffer = ShortArray(numSamples)
-        // Spacetoon glittering chime arpeggio: C5 -> G5 -> E6
-        val notes = listOf(523.25, 783.99, 1318.51)
-        val step = numSamples / 3
-        for (i in 0 until numSamples) {
-            val noteIndex = (i / step).coerceIn(0, notes.size - 1)
-            val freq = notes[noteIndex]
-            val t = i.toDouble() / sampleRate
-            val noteTime = (i % step).toDouble() / sampleRate
-            val env = exp(-3.0 * noteTime)
-            val sample = (sin(2 * PI * freq * t) * 0.7 + sin(4 * PI * freq * t) * 0.3) * env
-            buffer[i] = (sample * 25000).toInt().coerceIn(-32767, 32767).toShort()
-        }
-        return buffer
     }
 
     private fun generateDing(): ShortArray {
@@ -332,7 +234,7 @@ object SoundEffectsGenerator {
                     BgmStyle.FUNNY -> listOf(261.63, 329.63, 392.0, 523.25) // C major playful
                     BgmStyle.DRAMATIC -> listOf(196.0, 233.08, 293.66, 392.0) // G minor
                     BgmStyle.LOFI -> listOf(293.66, 349.23, 440.0, 523.25) // D minor 7
-                    BgmStyle.SPACETOON -> listOf(261.63, 329.63, 392.0, 587.33) // C Major 9 Heroic Spacetoon Chord
+                    BgmStyle.ORCHESTRAL -> listOf(261.63, 329.63, 392.0, 523.25) // C Major Orchestral Chord
                     else -> emptyList()
                 }
                 if (chordFreqs.isEmpty()) return@launch

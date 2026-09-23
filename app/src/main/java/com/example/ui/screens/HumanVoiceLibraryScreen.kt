@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
@@ -91,6 +90,8 @@ import com.example.audio.library.VoiceDialect
 import com.example.audio.library.VoiceGender
 import com.example.audio.library.VoiceLibraryFilter
 import com.example.ui.DubbingViewModel
+import com.example.R
+import com.example.ui.components.AccessibleImageCard
 import com.example.ui.components.AudioWaveformVisualizer
 import kotlinx.coroutines.launch
 
@@ -214,6 +215,16 @@ fun HumanVoiceLibraryScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Accessible Visual Guide Banner for Blind & All Users
+            AccessibleImageCard(
+                imageRes = R.drawable.img_voice_characters,
+                title = "مكتبة الأصوات الحية والشخصيات الكرتونية 🎭",
+                visualDescription = "لوحة بصرية ثلاثية الأبعاد تجسد شخصيات كرتونية وأصوات درامية ووثائقية بعدة نبرات ولهجات عربية، جاهزة للاستخدام في دبلجة أعمالك.",
+                accessibilityHint = "اضغط على زر الاستماع للوصف الصوتي لسماع هذا التوجيه نطقاً بصوت واضح لدعم المكفوفين وضعاف البصر.",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                badgeText = "دعم صوتي للمكفوفين ♿🔊"
+            )
+
             // Search & Instant Filter Bar
             Card(
                 modifier = Modifier
@@ -787,14 +798,14 @@ fun VoiceProfileCard(
                     modifier = Modifier.weight(1.3f)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Mic,
+                        imageVector = Icons.Default.GraphicEq,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text = "تعيين للدبلجة 🎙️",
+                        text = "تعيين للدبلجة 🎬",
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold

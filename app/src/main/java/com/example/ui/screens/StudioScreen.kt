@@ -1,7 +1,5 @@
 package com.example.ui.screens
 
-import android.Manifest
-import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -18,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,25 +31,30 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
+import android.widget.Toast
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -76,6 +80,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import com.example.ui.components.AudioWaveformTrack
+import com.example.ui.components.RechartsAudioWaveformVisualizer
+import com.example.ui.components.OnboardingHelpDialog
 import com.example.ui.components.AudioTrimmerDialog
 import com.example.ui.components.AudioEffectsLibrarySheet
 import com.example.ui.components.ExportProjectDialog
@@ -111,13 +117,16 @@ import com.example.ui.components.IntegratedVideoPlayerComponent
 import com.example.ui.components.MixerControlSheet
 import com.example.ui.components.OnboardingTourManager
 import com.example.ui.components.OnboardingTourOverlay
-import com.example.ui.components.RecordingAudioSignal
-import com.example.ui.components.RecordingWaveformVisualizer
-import com.example.ui.components.SoundboardPad
 import com.example.ui.components.TeleprompterItem
 import com.example.ui.components.VideoCanvasPlayer
 import com.example.ui.components.VoiceLibrarySheet
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.window.Dialog
 import com.example.ui.components.ShareDubbingOptionsDialog
+import com.example.model.ScriptLine
+import com.example.R
+import com.example.ui.components.AccessibleImageCard
+import com.example.ui.components.AccessibleBlindDubbingPanel
 
 @Composable
 fun StudioScreen(
@@ -130,19 +139,22 @@ fun StudioScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val exportDialogState by viewModel.exportDialogState.collectAsStateWithLifecycle()
+    val savedRecordings by viewModel.allSavedRecordings.collectAsStateWithLifecycle()
+    val currentlyPlayingRecordingId by viewModel.currentlyPlayingRecordingId.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    var showDiscardTakeDialog by remember { mutableStateOf(false) }
     var showOnboardingTour by remember { mutableStateOf(!OnboardingTourManager.isTourCompleted(context)) }
+    var showOnboardingHelpDialog by remember { mutableStateOf(false) }
+    var showRechartsSpectrumVisualizer by remember { mutableStateOf(true) }
     var showCopilotModal by remember { mutableStateOf(false) }
     var showVoiceLibrarySheet by remember { mutableStateOf(false) }
+    var ttsTargetLine by remember { mutableStateOf<ScriptLine?>(null) }
     var showSaveDialog by remember { mutableStateOf(false) }
     var showStudioShareDialog by remember { mutableStateOf(false) }
     var projectTitleInput by remember { mutableStateOf("") }
-    var showAddLineDialog by remember { mutableStateOf(false) }
-    var newLineSpeaker by remember { mutableStateOf("") }
-    var newLineText by remember { mutableStateOf("") }
     var isFramePrecisionPlayerActive by remember { mutableStateOf(false) }
 
     val audioPickerLauncher = rememberLauncherForActivityResult(
@@ -155,14 +167,6 @@ fun StudioScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: android.net.Uri? ->
         uri?.let { viewModel.importVideoForAutoDubbing(it) }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            viewModel.startRecordingCountdown()
-        }
     }
 
     LaunchedEffect(state.toastMessage) {
@@ -205,7 +209,7 @@ fun StudioScreen(
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
-                                            imageVector = Icons.Default.Mic,
+                                            imageVector = Icons.Default.Movie,
                                             contentDescription = null,
                                             tint = Color(0xFF381E72),
                                             modifier = Modifier.size(16.dp)
@@ -227,387 +231,245 @@ fun StudioScreen(
                             )
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Voice Library (4,800+ Human Voices)
+                        // Top Header Actions (Theme Toggle & Onboarding & Guide)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Onboarding Help
                             IconButton(
-                                onClick = { showVoiceLibrarySheet = true },
+                                onClick = { showOnboardingHelpDialog = true },
                                 modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("open_voice_library_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.85f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(text = "🎙️", fontSize = 16.sp)
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Mixer Button
-                            IconButton(
-                                onClick = { viewModel.setShowMixer(true) },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("mixer_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF49454F)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Tune,
-                                            contentDescription = "ميكسر الصوت",
-                                            tint = Color(0xFFD0BCFF),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Audio Effects Library Button
-                            IconButton(
-                                onClick = { viewModel.openAudioEffectsLibrary() },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("audio_effects_library_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.8f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(text = "🎛️", fontSize = 16.sp)
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Split-Screen Preview & Compare Button
-                            IconButton(
-                                onClick = { viewModel.openSplitScreenCompare(true) },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("open_split_compare_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.8f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Compare,
-                                            contentDescription = "معاينة ومقارنة منقسمة",
-                                            tint = Color(0xFF34D399),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Dedicated Video-Audio Waveform Precision Sync Button
-                            IconButton(
-                                onClick = onNavigateToSync,
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("open_video_audio_sync_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.9f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Sync,
-                                            contentDescription = "مزامنة الفيديو والصوت الدقيقة",
-                                            tint = Color(0xFF38BDF8),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Dedicated Pre-Export Processing & Preview Hub Button
-                            IconButton(
-                                onClick = onNavigateToProcessingPreview,
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("open_processing_preview_hub_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFFA78BFA).copy(alpha = 0.9f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Movie,
-                                            contentDescription = "مركز المعالجة والمعاينة قبل التصدير",
-                                            tint = Color(0xFFC084FC),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // AI Copilot Assistant Button
-                            IconButton(
-                                onClick = { showCopilotModal = true },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("open_ai_copilot_assistant_btn")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.9f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.SmartToy,
-                                            contentDescription = "المساعد الذكي الفوري",
-                                            tint = Color(0xFF00E5FF),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Interactive Onboarding Tour Button
-                            IconButton(
-                                onClick = { showOnboardingTour = true },
-                                modifier = Modifier
-                                    .size(38.dp)
+                                    .size(36.dp)
                                     .testTag("reopen_onboarding_tour_btn")
                             ) {
                                 Surface(
                                     shape = CircleShape,
                                     color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.9f)),
-                                    modifier = Modifier.size(36.dp)
+                                    border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.8f)),
+                                    modifier = Modifier.size(34.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = Icons.Default.HelpOutline,
                                             contentDescription = "جولة الاستخدام الإرشادية",
                                             tint = Color(0xFFFFD54F),
-                                            modifier = Modifier.size(18.dp)
+                                            modifier = Modifier.size(17.dp)
                                         )
                                     }
                                 }
                             }
 
-                            Spacer(Modifier.width(6.dp))
-
-                            // App Guide & PDF Manual Button
-                            IconButton(
-                                onClick = onNavigateToGuide,
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("open_guide_and_pdf_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF34D399).copy(alpha = 0.9f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.MenuBook,
-                                            contentDescription = "دليل الاستخدام وكتيب PDF",
-                                            tint = Color(0xFF34D399),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Import & Dub Video Button
-                            IconButton(
-                                onClick = { videoPickerLauncher.launch("video/*") },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("import_video_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.8f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Videocam,
-                                            contentDescription = "استيراد ودبلجة فيديو",
-                                            tint = Color(0xFFD0BCFF),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Import & Trim Audio Button
-                            IconButton(
-                                onClick = { audioPickerLauncher.launch("audio/*") },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("import_audio_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF80CBC4).copy(alpha = 0.6f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.ContentCut,
-                                            contentDescription = "استيراد وقص صوت",
-                                            tint = Color(0xFF80CBC4),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Save Project Button
-                            IconButton(
-                                onClick = {
-                                    projectTitleInput = state.currentProject?.title ?: "دبلجة ${state.currentClip.title}"
-                                    showSaveDialog = true
-                                },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("save_project_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFFA6D4A8).copy(alpha = 0.5f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Save,
-                                            contentDescription = "حفظ المشروع",
-                                            tint = Color(0xFFA6D4A8),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Share Button
-                            IconButton(
-                                onClick = { viewModel.shareProject() },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("share_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFFD0E4FF).copy(alpha = 0.5f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Share,
-                                            contentDescription = "مشاركة",
-                                            tint = Color(0xFFD0E4FF),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Export to MP4/MP3 Button
-                            IconButton(
-                                onClick = { viewModel.openExportDialog() },
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("studio_export_project_button")
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.9f)),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Download,
-                                            contentDescription = "تصدير MP4 أو MP3",
-                                            tint = Color(0xFF10B981),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(6.dp))
-
-                            // Global Dark/Light Theme Toggle
+                            // Theme Toggle
                             val isDarkThemeActive by viewModel.isDarkMode.collectAsStateWithLifecycle()
                             IconButton(
                                 onClick = { viewModel.toggleDarkMode() },
                                 modifier = Modifier
-                                    .size(38.dp)
+                                    .size(36.dp)
                                     .testTag("studio_theme_toggle_button")
                             ) {
                                 Surface(
                                     shape = CircleShape,
                                     color = Color(0xFF2B2930),
-                                    border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.9f)),
-                                    modifier = Modifier.size(36.dp)
+                                    border = BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.8f)),
+                                    modifier = Modifier.size(34.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = if (isDarkThemeActive) Icons.Default.LightMode else Icons.Default.DarkMode,
                                             contentDescription = "تبديل المظهر ليلي/نهاري",
-                                            tint = Color(0xFFFFD54F),
-                                            modifier = Modifier.size(18.dp)
+                                            tint = Color(0xFFD0BCFF),
+                                            modifier = Modifier.size(17.dp)
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Dedicated Blind & Visually Impaired Dubbing Flow
+                item {
+                    AccessibleBlindDubbingPanel(
+                        viewModel = viewModel,
+                        onImportAudio = { audioPickerLauncher.launch("audio/*") },
+                        onImportVideo = { videoPickerLauncher.launch("video/*") },
+                        onOpenVoiceLibrary = { showVoiceLibrarySheet = true },
+                        onOpenTtsInput = { viewModel.performCompleteAutonomousDubbing { _, _ -> } },
+                        onExportProject = { viewModel.openExportDialog() }
+                    )
+                }
+
+                // Accessible Visual Guide Banner for Blind & All Users
+                item {
+                    AccessibleImageCard(
+                        imageRes = R.drawable.img_accessibility_guide,
+                        title = "مساعد الدبلجة والوصول الصوتي الشامل 🎧",
+                        visualDescription = "تصميم إرشادي تفاعلي مدعوم بأمواج صوتية وسماعات رأس، مصمم خصيصاً لمساعدة المكفوفين وضعاف البصر على دبلجة الفيديوهات بسلاسة وسماع التوجيهات الصوتية في كل خطوة.",
+                        accessibilityHint = "اضغط على زر الاستماع للوصف الصوتي لسماع هذا التوجيه نطقاً بصوت واضح.",
+                        badgeText = "مدعوم صوتياً للمكفوفين ♿🔊"
+                    )
+                }
+
+                // Organized Studio Tools Square Grid Card
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("studio_tools_grid_card"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF201D27)),
+                        border = BorderStroke(1.dp, Color(0xFF383344))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "🎛️ أدوات واستوديوهات العمل",
+                                    color = Color(0xFFE6E1E5),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "مربعة ومنسقة ✨",
+                                    color = Color(0xFFD0BCFF),
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            // Row 1: Voice Library, Mixer, Effects, Split Compare
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                StudioSquareToolTile(
+                                    iconText = "🎙️",
+                                    title = "الأصوات",
+                                    borderColor = Color(0xFF00E5FF),
+                                    testTag = "open_voice_library_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { showVoiceLibrarySheet = true }
+                                )
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.Tune,
+                                    title = "الميكسر",
+                                    iconTint = Color(0xFFD0BCFF),
+                                    borderColor = Color(0xFFD0BCFF),
+                                    testTag = "mixer_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { viewModel.setShowMixer(true) }
+                                )
+                                StudioSquareToolTile(
+                                    iconText = "🎛️",
+                                    title = "المؤثرات",
+                                    borderColor = Color(0xFFEC4899),
+                                    testTag = "audio_effects_library_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { viewModel.openAudioEffectsLibrary() }
+                                )
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.Compare,
+                                    title = "مقارنة A/B",
+                                    iconTint = Color(0xFF34D399),
+                                    borderColor = Color(0xFF10B981),
+                                    testTag = "open_split_compare_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { viewModel.openSplitScreenCompare(true) }
+                                )
+                            }
+
+                            // Row 2: Waveform Sync, Pre-export Preview, AI Copilot, TTS Input
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.Sync,
+                                    title = "المزامنة",
+                                    iconTint = Color(0xFF38BDF8),
+                                    borderColor = Color(0xFF38BDF8),
+                                    testTag = "open_video_audio_sync_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = onNavigateToSync
+                                )
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.Movie,
+                                    title = "المعاينة",
+                                    iconTint = Color(0xFFC084FC),
+                                    borderColor = Color(0xFFA78BFA),
+                                    testTag = "open_processing_preview_hub_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = onNavigateToProcessingPreview
+                                )
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.SmartToy,
+                                    title = "مساعد AI",
+                                    iconTint = Color(0xFF00E5FF),
+                                    borderColor = Color(0xFF00E5FF),
+                                    testTag = "open_ai_copilot_assistant_btn",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { showCopilotModal = true }
+                                )
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.AutoAwesome,
+                                    title = "دبلجة ذاتية ⚡",
+                                    iconTint = Color(0xFFFFD54F),
+                                    borderColor = Color(0xFFFFD54F),
+                                    testTag = "quick_tts_input_btn",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        viewModel.performCompleteAutonomousDubbing { _, _ -> }
+                                    }
+                                )
+                            }
+
+                            // Row 3: Import Video, Import Audio, Save Project, Export Video
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.Videocam,
+                                    title = "فيديو +",
+                                    iconTint = Color(0xFFB388FF),
+                                    borderColor = Color(0xFF8B5CF6),
+                                    testTag = "import_video_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { videoPickerLauncher.launch("video/*") }
+                                )
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.FileUpload,
+                                    title = "صوت +",
+                                    iconTint = Color(0xFF80CBC4),
+                                    borderColor = Color(0xFF80CBC4),
+                                    testTag = "import_audio_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { audioPickerLauncher.launch("audio/*") }
+                                )
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.Save,
+                                    title = "حفظ",
+                                    iconTint = Color(0xFFA6D4A8),
+                                    borderColor = Color(0xFFA6D4A8),
+                                    testTag = "save_project_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        projectTitleInput = state.currentProject?.title ?: "دبلجة ${state.currentClip.title}"
+                                        showSaveDialog = true
+                                    }
+                                )
+                                StudioSquareToolTile(
+                                    icon = Icons.Default.Download,
+                                    title = "تصدير",
+                                    iconTint = Color(0xFF34D399),
+                                    borderColor = Color(0xFF10B981),
+                                    testTag = "studio_export_project_button",
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { viewModel.openExportDialog() }
+                                )
                             }
                         }
                     }
@@ -683,13 +545,13 @@ fun StudioScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2930)),
-                        border = BorderStroke(1.dp, if (state.isRecording) Color(0xFFF2B8B5) else Color(0xFF49454F))
+                        border = BorderStroke(1.dp, Color(0xFF49454F))
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Timecode & Voice Effect Badge & Instant Gender Dub Badge
+                            // Timecode & Instant Dubbing Mode Pill
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -711,13 +573,13 @@ fun StudioScreen(
                                     )
                                 }
 
-                                // Instant Gender Dubbing / Voice Mode Pill
+                                // Instant AI Voice Dubbing Mode Pill
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = if (state.isRecording) Color(state.lastDetectedGender.colorHex).copy(alpha = 0.25f) else Color(0xFF4A4458),
+                                    color = Color(0xFF4A4458),
                                     border = BorderStroke(
                                         1.dp,
-                                        if (state.isRecording) Color(state.lastDetectedGender.colorHex) else Color(0xFFD0BCFF).copy(alpha = 0.4f)
+                                        Color(0xFFD0BCFF).copy(alpha = 0.4f)
                                     ),
                                     modifier = Modifier.clickable {
                                         val nextMode = when (viewModel.instantConfig.value.mode) {
@@ -735,12 +597,8 @@ fun StudioScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = if (state.isRecording && state.lastDetectedGender != com.example.audio.DetectedGender.SILENCE) {
-                                                "${state.lastDetectedGender.emoji} ${state.lastDetectedGender.titleArabic} • تحويل فوري"
-                                            } else {
-                                                "دبلجة فورية: ${viewModel.instantConfig.value.mode.titleArabic}"
-                                            },
-                                            color = if (state.isRecording) Color(state.lastDetectedGender.colorHex) else Color(0xFFEADDFF),
+                                            text = "دبلجة ذكية: ${viewModel.instantConfig.value.mode.titleArabic} ✨",
+                                            color = Color(0xFFEADDFF),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Medium
                                         )
@@ -750,41 +608,70 @@ fun StudioScreen(
 
                             Spacer(Modifier.height(10.dp))
 
-                            // Real-time Recording Audio Signal Visualizer (Live Oscilloscope + Level Meter + Clipping Alert)
-                            if (state.isRecording) {
-                                val dbFs = -60f + (state.liveAmplitude * 60f)
-                                val isOvermod = state.liveAmplitude > 0.88f
-                                val isSpeech = state.liveAmplitude > 0.08f
-                                RecordingWaveformVisualizer(
-                                    signal = RecordingAudioSignal(
-                                        amplitude = state.liveAmplitude,
-                                        peakAmplitude = state.liveAmplitude * 1.15f,
-                                        decibels = dbFs,
-                                        isClipping = isOvermod,
-                                        isSpeechDetected = isSpeech,
-                                        recordingDurationSeconds = state.currentPlaybackSeconds
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(Modifier.height(8.dp))
-                            }
-
-                            // Interactive Audio Waveform with Silence Detection & Volume Meter
+                            // Interactive Audio Waveform & Recharts Frequency Spectrum
                             val totalClipSec = state.currentClip.durationSeconds.toFloat().coerceAtLeast(1f)
                             val progressFrac = (state.currentPlaybackSeconds / totalClipSec).coerceIn(0f, 1f)
-                            AudioWaveformTrack(
-                                waveformHistory = state.waveformHistory,
-                                currentAmplitude = state.liveAmplitude,
-                                isRecording = state.isRecording,
-                                isPlaying = state.isPlaying,
-                                progressFraction = progressFrac,
-                                totalDurationSeconds = totalClipSec,
-                                onSeek = { viewModel.seekTo(it) }
-                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.GraphicEq,
+                                        contentDescription = null,
+                                        tint = Color(0xFF00E5FF),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = if (showRechartsSpectrumVisualizer) "محلل الترددات (Recharts Audio Engine) 🎚️" else "مسار الموجة الصوتية 〰️",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF00E5FF)
+                                    )
+                                }
+                                TextButton(
+                                    onClick = { showRechartsSpectrumVisualizer = !showRechartsSpectrumVisualizer },
+                                    modifier = Modifier.testTag("toggle_recharts_visualizer_mode_btn")
+                                ) {
+                                    Text(
+                                        text = if (showRechartsSpectrumVisualizer) "المسار الكلاسيكي ⇄" else "طيف Recharts ⇄",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFFD0BCFF)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(4.dp))
+
+                            if (showRechartsSpectrumVisualizer) {
+                                val dynamicLiveAmp = if (state.isPlaying) (0.35f + ((state.currentPlaybackSeconds * 3f) % 1f) * 0.45f) else if (state.isRecording) 0.75f else 0.22f
+                                RechartsAudioWaveformVisualizer(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    isLiveRecording = state.isRecording,
+                                    currentAmplitude = dynamicLiveAmp,
+                                    waveformHistory = state.waveformHistory,
+                                    playbackProgress = progressFrac,
+                                    onSeek = { viewModel.seekTo(it * totalClipSec) }
+                                )
+                            } else {
+                                AudioWaveformTrack(
+                                    waveformHistory = state.waveformHistory,
+                                    currentAmplitude = 0f,
+                                    isRecording = false,
+                                    isPlaying = state.isPlaying,
+                                    progressFraction = progressFrac,
+                                    totalDurationSeconds = totalClipSec,
+                                    onSeek = { viewModel.seekTo(it) }
+                                )
+                            }
 
                             Spacer(Modifier.height(12.dp))
 
-                            // Action Controls (Record Button, Play/Pause, Rewind, Change Scene)
+                            // Action Controls (Rewind, Play/Pause Primary Center, Mute Video Sound)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -811,243 +698,287 @@ fun StudioScreen(
                                     }
                                 }
 
-                                // Main Record / Stop Mic Button (Center Highlighted)
+                                // Main Play / Pause Button (Center Highlighted)
                                 Surface(
                                     shape = CircleShape,
-                                    color = if (state.isRecording) Color(0xFFF2B8B5) else Color(0xFFD0BCFF),
+                                    color = Color(0xFFD0BCFF),
                                     shadowElevation = 6.dp,
                                     modifier = Modifier
                                         .size(68.dp)
                                         .clickable {
-                                            if (state.isRecording) {
-                                                viewModel.stopRecording()
-                                            } else {
-                                                val hasPermission = ContextCompat.checkSelfPermission(
-                                                    context,
-                                                    Manifest.permission.RECORD_AUDIO
-                                                ) == PackageManager.PERMISSION_GRANTED
-                                                if (hasPermission) {
-                                                    viewModel.startRecordingCountdown()
-                                                } else {
-                                                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                                }
-                                            }
+                                            viewModel.togglePlayPause()
                                         }
-                                        .testTag("record_dub_button")
+                                        .testTag("play_pause_dub_button")
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
-                                            imageVector = if (state.isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                                            contentDescription = if (state.isRecording) "إيقاف التسجيل" else "بدء الدبلجة",
-                                            tint = if (state.isRecording) Color(0xFF601410) else Color(0xFF381E72),
-                                            modifier = Modifier.size(32.dp)
+                                            imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            contentDescription = if (state.isPlaying) "إيقاف مؤقت" else "تشغيل",
+                                            tint = Color(0xFF381E72),
+                                            modifier = Modifier.size(36.dp)
                                         )
                                     }
                                 }
 
-                                // Play / Pause Button
+                                // Mute / Unmute Original Video Audio
                                 IconButton(
-                                    onClick = { viewModel.togglePlayPause() },
+                                    onClick = { viewModel.toggleMuteOriginal() },
                                     modifier = Modifier.size(44.dp)
                                 ) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = Color(0xFF4A4458),
+                                        color = if (state.isMutedOriginal) Color(0xFF601410) else Color(0xFF4A4458),
                                         modifier = Modifier.size(40.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                                contentDescription = if (state.isPlaying) "إيقاف مؤقت" else "تشغيل",
-                                                tint = Color(0xFFD0E4FF),
-                                                modifier = Modifier.size(22.dp)
+                                                imageVector = if (state.isMutedOriginal) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                                contentDescription = if (state.isMutedOriginal) "إلغاء كتم صوت الفيديو" else "كتم صوت الفيديو الأصلي",
+                                                tint = if (state.isMutedOriginal) Color(0xFFF2B8B5) else Color(0xFFD0E4FF),
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }
                                 }
                             }
 
-                            // Quick Audio Action Buttons (Effects Library, Import, Trim Take)
-                            Spacer(Modifier.height(8.dp))
-                            Row(
+                            // Quick Audio Action Buttons (Clean 2-Row Structured Grid)
+                            Spacer(Modifier.height(10.dp))
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Audio Effect Chip Button
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF381E72),
-                                    border = BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.8f)),
-                                    modifier = Modifier
-                                        .clickable { viewModel.openAudioEffectsLibrary() }
-                                        .testTag("quick_effect_chip_btn")
+                                // Action Row 1: Effect, Normalize, Import Audio
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(text = state.selectedAudioEffectItem.iconEmoji, fontSize = 13.sp)
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            text = "مؤثر: ${state.selectedAudioEffectItem.titleArabic.split(" ")[0]} 🎛️",
-                                            color = Color(0xFFD0BCFF),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-
-                                Spacer(Modifier.width(6.dp))
-
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF2E2442),
-                                    border = BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.7f)),
-                                    modifier = Modifier
-                                        .clickable { viewModel.openVolumeNormalizationSheet() }
-                                        .testTag("quick_normalize_volume_btn")
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Balance,
-                                            contentDescription = null,
-                                            tint = Color(0xFFD0BCFF),
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Spacer(Modifier.width(3.dp))
-                                        Text(
-                                            text = "موازنة ⚖️",
-                                            color = Color(0xFFD0BCFF),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-
-                                Spacer(Modifier.width(6.dp))
-
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF25232A),
-                                    border = BorderStroke(1.dp, Color(0xFF80CBC4).copy(alpha = 0.5f)),
-                                    modifier = Modifier
-                                        .clickable { audioPickerLauncher.launch("audio/*") }
-                                        .testTag("quick_import_audio_btn")
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.FileUpload,
-                                            contentDescription = null,
-                                            tint = Color(0xFF80CBC4),
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Spacer(Modifier.width(3.dp))
-                                        Text(
-                                            text = "استيراد صوت",
-                                            color = Color(0xFF80CBC4),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-
-                                if (state.recordedAudioPath != null) {
-                                    Spacer(Modifier.width(6.dp))
+                                    // Audio Effect Button
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFF2B2930),
-                                        border = BorderStroke(1.dp, Color(0xFF90CAF9).copy(alpha = 0.7f)),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF381E72),
+                                        border = BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.8f)),
                                         modifier = Modifier
-                                            .clickable { viewModel.openAudioTrimmerForCurrentTake() }
-                                            .testTag("quick_trim_audio_btn")
+                                            .weight(1f)
+                                            .clickable { viewModel.openAudioEffectsLibrary() }
+                                            .testTag("quick_effect_chip_btn")
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Text(text = state.selectedAudioEffectItem.iconEmoji, fontSize = 13.sp)
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = "مؤثر: ${state.selectedAudioEffectItem.titleArabic.split(" ")[0]}",
+                                                color = Color(0xFFD0BCFF),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+
+                                    // Volume Balance Button
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF2E2442),
+                                        border = BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.7f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { viewModel.openVolumeNormalizationSheet() }
+                                            .testTag("quick_normalize_volume_btn")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.ContentCut,
+                                                imageVector = Icons.Default.Balance,
                                                 contentDescription = null,
-                                                tint = Color(0xFF90CAF9),
-                                                modifier = Modifier.size(13.dp)
+                                                tint = Color(0xFFD0BCFF),
+                                                modifier = Modifier.size(14.dp)
                                             )
-                                            Spacer(Modifier.width(3.dp))
+                                            Spacer(Modifier.width(4.dp))
                                             Text(
-                                                text = "قص ✂️",
-                                                color = Color(0xFF90CAF9),
+                                                text = "موازنة ⚖️",
+                                                color = Color(0xFFD0BCFF),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
                                     }
-                                }
 
-                                // Undo & Redo Quick Buttons
-                                if (state.canUndo) {
-                                    Spacer(Modifier.width(6.dp))
+                                    // Import Audio File Button
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFF2B2930),
-                                        border = BorderStroke(1.dp, Color(0xFFFFB74D).copy(alpha = 0.7f)),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF25232A),
+                                        border = BorderStroke(1.dp, Color(0xFF80CBC4).copy(alpha = 0.6f)),
                                         modifier = Modifier
-                                            .clickable { viewModel.undo() }
-                                            .testTag("quick_undo_btn")
+                                            .weight(1f)
+                                            .clickable { audioPickerLauncher.launch("audio/*") }
+                                            .testTag("quick_import_audio_btn")
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Undo,
-                                                contentDescription = "تراجع",
-                                                tint = Color(0xFFFFB74D),
-                                                modifier = Modifier.size(13.dp)
+                                                imageVector = Icons.Default.FileUpload,
+                                                contentDescription = null,
+                                                tint = Color(0xFF80CBC4),
+                                                modifier = Modifier.size(14.dp)
                                             )
-                                            Spacer(Modifier.width(3.dp))
+                                            Spacer(Modifier.width(4.dp))
                                             Text(
-                                                text = "تراجع",
-                                                color = Color(0xFFFFB74D),
+                                                text = "استيراد صوت",
+                                                color = Color(0xFF80CBC4),
                                                 fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
                                             )
                                         }
                                     }
                                 }
 
-                                if (state.canRedo) {
-                                    Spacer(Modifier.width(6.dp))
+                                // Action Row 2: TTS, Trim, Undo, Redo
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Direct Autonomous Voice Synthesis Button (Zero-typing)
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFF2B2930),
-                                        border = BorderStroke(1.dp, Color(0xFF81C784).copy(alpha = 0.7f)),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF1E1B4B),
+                                        border = BorderStroke(1.dp, Color(0xFFFFD54F).copy(alpha = 0.8f)),
                                         modifier = Modifier
-                                            .clickable { viewModel.redo() }
-                                            .testTag("quick_redo_btn")
+                                            .weight(1f)
+                                            .clickable {
+                                                viewModel.performCompleteAutonomousDubbing { _, _ -> }
+                                            }
+                                            .testTag("quick_tts_input_btn")
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Redo,
-                                                contentDescription = "إعادة",
-                                                tint = Color(0xFF81C784),
-                                                modifier = Modifier.size(13.dp)
+                                                imageVector = Icons.Default.AutoAwesome,
+                                                contentDescription = null,
+                                                tint = Color(0xFFFFD54F),
+                                                modifier = Modifier.size(14.dp)
                                             )
-                                            Spacer(Modifier.width(3.dp))
+                                            Spacer(Modifier.width(4.dp))
                                             Text(
-                                                text = "إعادة",
-                                                color = Color(0xFF81C784),
+                                                text = "توليد الأصوات ⚡",
+                                                color = Color(0xFFFFD54F),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
+                                        }
+                                    }
+
+                                    if (state.recordedAudioPath != null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = Color(0xFF2B2930),
+                                            border = BorderStroke(1.dp, Color(0xFF90CAF9).copy(alpha = 0.7f)),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable { viewModel.openAudioTrimmerForCurrentTake() }
+                                                .testTag("quick_trim_audio_btn")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ContentCut,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF90CAF9),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    text = "قص ✂️",
+                                                    color = Color(0xFF90CAF9),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Undo Quick Button
+                                    if (state.canUndo) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = Color(0xFF2B2930),
+                                            border = BorderStroke(1.dp, Color(0xFFFFB74D).copy(alpha = 0.7f)),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable { viewModel.undo() }
+                                                .testTag("quick_undo_btn")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Undo,
+                                                    contentDescription = "تراجع",
+                                                    tint = Color(0xFFFFB74D),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(3.dp))
+                                                Text(
+                                                    text = "تراجع",
+                                                    color = Color(0xFFFFB74D),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Redo Quick Button
+                                    if (state.canRedo) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = Color(0xFF2B2930),
+                                            border = BorderStroke(1.dp, Color(0xFF81C784).copy(alpha = 0.7f)),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable { viewModel.redo() }
+                                                .testTag("quick_redo_btn")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Redo,
+                                                    contentDescription = "إعادة",
+                                                    tint = Color(0xFF81C784),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(3.dp))
+                                                Text(
+                                                    text = "إعادة",
+                                                    color = Color(0xFF81C784),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1056,15 +987,15 @@ fun StudioScreen(
                             // Instruction Hint
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = if (state.isRecording) "جارٍ تسجيل صوتك للدبلجة.. تحدث مع المشهد!" else "اضغط على زر الميكروفون للبدء بالدبلجة مع المشهد",
-                                color = if (state.isRecording) Color(0xFFF2B8B5) else Color(0xFF938F99),
-                                fontSize = 11.sp
+                                text = "تحكم بتشغيل الفيديو ومزامنة مسارات الصوت المدبلجة والمؤثرات بسهولة 🎬",
+                                color = Color(0xFFCAC4D0),
+                                fontSize = 11.5.sp
                             )
                         }
                     }
                 }
 
-                // Recorded Audio Take & Trimming Card
+                // Added Audio Track & Trimming Card
                 if (state.recordedAudioPath != null && !state.isRecording) {
                     item {
                         Card(
@@ -1108,13 +1039,13 @@ fun StudioScreen(
                                         Spacer(Modifier.width(8.dp))
                                         Column {
                                             Text(
-                                                text = "مقطع صوتي مسجل جاهز 🎙️",
+                                                text = "المسار الصوتي المضاف للدبلجة 🎵",
                                                 color = Color(0xFFE6E1E5),
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Text(
-                                                text = "حدد واقتطع الأجزاء المطلوبة واحفظها بكل سهولة",
+                                                text = "صوت AI / ملف صوتي مستورد للدبلجة",
                                                 color = Color(0xFFCAC4D0),
                                                 fontSize = 11.sp
                                             )
@@ -1171,6 +1102,57 @@ fun StudioScreen(
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
+
+                                        // زر تصفير التأثيرات الصوتية والرجوع للوضع الطبيعي
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFFB00020).copy(alpha = 0.22f),
+                                            border = BorderStroke(1.dp, Color(0xFFCF6679).copy(alpha = 0.6f)),
+                                            modifier = Modifier
+                                                .clickable { viewModel.cancelRecordingAndResetEffects() }
+                                                .testTag("cancel_recording_and_effects_card_btn")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.RestartAlt,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFFFCDD2),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(3.dp))
+                                                Text(
+                                                    text = "تصفير التأثيرات ✕",
+                                                    color = Color(0xFFFFCDD2),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        // زر حذف المسار الصوتي الحالي مع تأكيد AlertDialog
+                                        IconButton(
+                                            onClick = { showDiscardTakeDialog = true },
+                                            modifier = Modifier.size(36.dp).testTag("discard_current_take_btn")
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color(0xFFB00020).copy(alpha = 0.2f),
+                                                border = BorderStroke(1.dp, Color(0xFFCF6679).copy(alpha = 0.5f)),
+                                                modifier = Modifier.size(34.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = "حذف المسار الصوتي الحالي",
+                                                        tint = Color(0xFFCF6679),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1178,7 +1160,7 @@ fun StudioScreen(
                     }
                 }
 
-                // Save & Export Merged Final Video with Recorded Audio Card
+                // Save & Export Merged Final Video with Dubbed Audio Track Card
                 item {
                     val hasRecordedAudio = state.recordedAudioPath != null && java.io.File(state.recordedAudioPath).exists()
                     Card(
@@ -1297,13 +1279,6 @@ fun StudioScreen(
                     }
                 }
 
-                // Soundboard Quick FX
-                item {
-                    SoundboardPad(
-                        onPlayEffect = { viewModel.playSoundEffect(it) }
-                    )
-                }
-
                 // Teleprompter / Script Header with Gemini AI Script Generation
                 item {
                     Row(
@@ -1353,15 +1328,33 @@ fun StudioScreen(
 
                             Spacer(Modifier.width(6.dp))
 
+                            // 1-Click Autonomous Dubbing Master Button
                             Button(
-                                onClick = { showAddLineDialog = true },
+                                onClick = {
+                                    viewModel.performCompleteAutonomousDubbing { _, _ -> }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4338CA)),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFF818CF8)),
+                                modifier = Modifier.testTag("studio_autonomous_dub_btn")
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFFFDE047), modifier = Modifier.size(13.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("دبلجة ذاتية ⚡", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Spacer(Modifier.width(6.dp))
+
+                            Button(
+                                onClick = { viewModel.autoGenerateSmartDialogueLines() },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A4458)),
                                 shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.3f))
+                                border = BorderStroke(1.dp, Color(0xFFD0BCFF).copy(alpha = 0.3f)),
+                                modifier = Modifier.testTag("studio_extract_dialogue_btn")
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFFD0BCFF), modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFFD0BCFF), modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("إضافة", color = Color(0xFFD0BCFF), fontSize = 11.sp)
+                                Text("استخراج الحوار ⚡", color = Color(0xFFD0BCFF), fontSize = 11.sp)
                             }
                         }
                     }
@@ -1375,6 +1368,9 @@ fun StudioScreen(
                         isActive = isActive,
                         onSpeak = { viewModel.speakScriptLine(line) },
                         onClick = { viewModel.seekTo(line.startSeconds) },
+                        onOpenTtsInput = {
+                            viewModel.speakScriptLine(line)
+                        },
                         onNudge = { dStart, dEnd -> viewModel.nudgeScriptLineTimestamp(index, dStart, dEnd) },
                         onAutoFit = { viewModel.autoFitScriptLineDuration(index) }
                     )
@@ -1519,73 +1515,69 @@ fun StudioScreen(
             )
         }
 
-        // Add Line Dialog
-        if (showAddLineDialog) {
+        // AlertDialog لتأكيد حذف التسجيل الصوتي الحالي
+        if (showDiscardTakeDialog) {
             AlertDialog(
-                onDismissRequest = { showAddLineDialog = false },
+                onDismissRequest = { showDiscardTakeDialog = false },
                 containerColor = Color(0xFF2B2930),
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.DeleteForever,
+                        contentDescription = null,
+                        tint = Color(0xFFEF5350),
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
                 title = {
-                    Text("إضافة جملة حوارية جديدة", color = Color(0xFFE6E1E5), fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "تأكيد حذف المسار الصوتي الحالي 🗑️",
+                        color = Color(0xFFE6E1E5),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
                 },
                 text = {
-                    Column {
-                        OutlinedTextField(
-                            value = newLineSpeaker,
-                            onValueChange = { newLineSpeaker = it },
-                            label = { Text("اسم المتحدث / الشخصية", color = Color(0xFFCAC4D0)) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFFD0BCFF),
-                                unfocusedBorderColor = Color(0xFF49454F),
-                                focusedTextColor = Color(0xFFE6E1E5),
-                                unfocusedTextColor = Color(0xFFE6E1E5)
-                            ),
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "هل أنت متأكد من رغبتك في حذف المسار الصوتي الحالي؟",
+                            color = Color(0xFFE6E1E5),
+                            fontSize = 13.sp
                         )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = newLineText,
-                            onValueChange = { newLineText = it },
-                            label = { Text("النص العربي للدبلجة", color = Color(0xFFCAC4D0)) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFFD0BCFF),
-                                unfocusedBorderColor = Color(0xFF49454F),
-                                focusedTextColor = Color(0xFFE6E1E5),
-                                unfocusedTextColor = Color(0xFFE6E1E5)
-                            ),
-                            maxLines = 3,
-                            modifier = Modifier.fillMaxWidth()
+                        Text(
+                            text = "سيتم التخلص من هذا المسار وإزالته من شاشة الاستوديو.",
+                            color = Color(0xFFCAC4D0),
+                            fontSize = 11.5.sp
                         )
                     }
                 },
                 confirmButton = {
                     Button(
                         onClick = {
-                            if (newLineText.isNotBlank()) {
-                                val currentPos = state.currentPlaybackSeconds
-                                viewModel.addScriptLine(
-                                    characterName = newLineSpeaker,
-                                    textArabic = newLineText,
-                                    startSec = currentPos,
-                                    endSec = (currentPos + 4f).coerceAtMost(state.currentClip.durationSeconds.toFloat())
-                                )
-                                newLineSpeaker = ""
-                                newLineText = ""
-                                showAddLineDialog = false
+                            val path = state.recordedAudioPath
+                            if (path != null) {
+                                try {
+                                    val f = java.io.File(path)
+                                    if (f.exists()) f.delete()
+                                } catch (_: Exception) {}
                             }
+                            viewModel.applyVoiceRecordingToStudio("")
+                            showDiscardTakeDialog = false
+                            Toast.makeText(context, "تم حذف المسار الصوتي الحالي بنجاح", Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD0BCFF))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020)),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("إضافة", color = Color(0xFF381E72), fontWeight = FontWeight.Bold)
+                        Text("نعم، حذف المقطع", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showAddLineDialog = false }) {
+                    TextButton(onClick = { showDiscardTakeDialog = false }) {
                         Text("إلغاء", color = Color(0xFFCAC4D0))
                     }
                 }
             )
         }
+
 
         // Visual Audio Trimmer Dialog
         if (state.showAudioTrimmer) {
@@ -1690,6 +1682,9 @@ fun StudioScreen(
                 },
                 onOpenExportDialog = {
                     viewModel.openExportDialog()
+                },
+                onExportAudio = {
+                    viewModel.exportSynchronizedDubbedAudioTrack(state.currentClip)
                 }
             )
         }
@@ -1760,42 +1755,6 @@ fun StudioScreen(
             onFinishTour = { showOnboardingTour = false }
         )
 
-        // Floating AI Copilot Assistant Trigger Button
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 76.dp, end = 16.dp),
-            contentAlignment = Alignment.BottomEnd
-        ) {
-            Surface(
-                onClick = { showCopilotModal = true },
-                shape = RoundedCornerShape(24.dp),
-                color = Color(0xFF1E1B4B),
-                border = BorderStroke(1.5.dp, Color(0xFF00E5FF)),
-                shadowElevation = 8.dp,
-                modifier = Modifier.testTag("floating_ai_copilot_badge_btn")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SmartToy,
-                        contentDescription = "المساعد الذكي AI",
-                        tint = Color(0xFF00E5FF),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "مساعد AI الذكي 🤖",
-                        color = Color(0xFFE0F7FA),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
         // AI Copilot Smart Assistant Modal
         if (showCopilotModal) {
             AiCopilotAssistantModal(
@@ -1804,26 +1763,100 @@ fun StudioScreen(
                 onNavigateToTab = { tab ->
                     showCopilotModal = false
                     when (tab) {
-                        AppTab.CLIPS -> onNavigateToLibrary()
                         AppTab.STUDIO -> {}
-                        AppTab.RECORDING -> {}
                         AppTab.VOICE_LIBRARY -> { showVoiceLibrarySheet = true }
                         AppTab.SYNC_STUDIO -> onNavigateToSync()
                         AppTab.PROCESSING_PREVIEW -> onNavigateToProcessingPreview()
                         AppTab.INSTANT_DUB -> {}
                         AppTab.AI_DUB -> {}
+                        AppTab.GEMINI_ONE_CLICK -> {}
                         AppTab.VIDEO_DUB -> {}
                         AppTab.PROJECTS -> onNavigateToLibrary()
-                        AppTab.SOUNDBOARD -> {}
                         AppTab.SETTINGS -> {}
                         AppTab.HELP_GUIDE -> onNavigateToGuide()
                         AppTab.UPDATE_CENTER -> {}
+                        AppTab.SECURITY_DASHBOARD -> {}
+                        AppTab.DEVELOPER_PORTAL -> {}
+                        AppTab.AUDIO_DUB -> {}
+                        else -> {}
                     }
                 },
                 onOpenProcessingCenter = {
                     showCopilotModal = false
                     onNavigateToProcessingPreview()
                 }
+            )
+        }
+
+        // AI Onboarding & Help Walkthrough Dialog
+        if (showOnboardingHelpDialog) {
+            OnboardingHelpDialog(
+                onDismiss = { showOnboardingHelpDialog = false },
+                onComplete = { dontShowAgain ->
+                    showOnboardingHelpDialog = false
+                    if (dontShowAgain) {
+                        coroutineScope.launch {
+                            viewModel.userSettingsDataStore.updateHasSeenOnboarding(true)
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Clean, organized square tool tile for Studio features.
+ * Symmetrical, clear iconography, structured borders, and responsive.
+ */
+@Composable
+fun StudioSquareToolTile(
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    iconText: String? = null,
+    iconTint: Color = Color.White,
+    borderColor: Color = Color(0xFF49454F),
+    testTag: String = ""
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF282533),
+        border = BorderStroke(1.dp, borderColor.copy(alpha = 0.75f)),
+        tonalElevation = 3.dp,
+        modifier = modifier
+            .height(72.dp)
+            .testTag(testTag)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 6.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (iconText != null) {
+                Text(
+                    text = iconText,
+                    fontSize = 20.sp
+                )
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = iconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = title,
+                color = Color(0xFFE6E1E5),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
             )
         }
     }

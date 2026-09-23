@@ -140,7 +140,7 @@ import java.io.File
  * Provides a comprehensive pre-export workstation:
  * 1. Synchronized Multi-Track Master Preview (Canvas/Native with Live Subtitles & Waveforms)
  * 2. Real-time Split Comparison (Side-by-Side, Wipe Slider, Fast A/B Flip, Master Cinema)
- * 3. Audio Mastering & Normalization (EBU R128, Auto-Ducking, Vocal Clarity, EQ, Spacetoon Echo)
+ * 3. Audio Mastering & Normalization (EBU R128, Auto-Ducking, Vocal Clarity, EQ, Studio Echo)
  * 4. Arabic Phonetics, Diacritics & Lettering Inspection (One-Tap Auto-Fix)
  * 5. Full Video Export Tuning (4K/1080p/720p, 60/30/24 FPS, Aspect Ratios, H.264/HEVC)
  * 6. Readiness Checklist & Instant Export / Save to Local Storage.
@@ -754,9 +754,9 @@ fun VideoProcessingPreviewScreen(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF94A3B8)),
                             border = BorderStroke(1.dp, Color(0xFF475569))
                         ) {
-                            Icon(Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("مكتبة المشاهد 🎞️", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            Text("مشاريعي والمسودات 📁", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1455,9 +1455,9 @@ private fun AudioMasteringModuleContent(
                 }
             }
 
-            // Spacetoon Anime Echo & Voice Presets
+            // Studio Anime Echo & Voice Presets
             Text(
-                text = "مؤثرات صدى الصوت والأنمي الملحمي (Spacetoon DSP Presets):",
+                text = "مؤثرات صدى الصوت والأنمي الملحمي (Studio DSP Presets):",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFF3E8FF)

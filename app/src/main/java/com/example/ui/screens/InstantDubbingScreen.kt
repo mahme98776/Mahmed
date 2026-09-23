@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -30,8 +31,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Female
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
@@ -71,8 +72,6 @@ import com.example.audio.DetectedGender
 import com.example.audio.InstantDubbingMode
 import com.example.ui.DubbingViewModel
 import com.example.ui.components.AudioWaveformVisualizer
-import com.example.ui.components.RecordingAudioSignal
-import com.example.ui.components.RecordingWaveformVisualizer
 import kotlinx.coroutines.launch
 
 @Composable
@@ -87,6 +86,7 @@ fun InstantDubbingScreen(
     val isInstantPlaying by viewModel.isInstantPlaying.collectAsStateWithLifecycle()
     val isAnalyzing by viewModel.genderDetector.isAnalyzing.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var testTakePath by remember { mutableStateOf<String?>(null) }
     var isRecordingTestTake by remember { mutableStateOf(false) }
@@ -169,7 +169,7 @@ fun InstantDubbingScreen(
                     modifier = Modifier.testTag("toggle_voice_analysis_btn")
                 ) {
                     Icon(
-                        imageVector = if (isAnalyzing) Icons.Default.Refresh else Icons.Default.Mic,
+                        imageVector = if (isAnalyzing) Icons.Default.Refresh else Icons.Default.GraphicEq,
                         contentDescription = "تحليل",
                         tint = if (isAnalyzing) Color(0xFFD0BCFF) else Color(0xFFCAC4D0)
                     )
@@ -329,26 +329,12 @@ fun InstantDubbingScreen(
 
                     Spacer(Modifier.height(12.dp))
 
-                    // Real-time Audio Signal Waveform & Oscilloscope
-                    if (isAnalyzing || isRecordingTestTake) {
-                        val db = -60f + (genderAnalysis.rmsLevel * 60f)
-                        RecordingWaveformVisualizer(
-                            signal = RecordingAudioSignal(
-                                amplitude = genderAnalysis.rmsLevel,
-                                peakAmplitude = genderAnalysis.rmsLevel * 1.1f,
-                                decibels = db,
-                                isClipping = genderAnalysis.rmsLevel > 0.88f,
-                                isSpeechDetected = genderAnalysis.rmsLevel > 0.05f
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        AudioWaveformVisualizer(
-                            amplitude = genderAnalysis.rmsLevel,
-                            isActive = isAnalyzing && genderAnalysis.rmsLevel > 0.04f,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+                    // Audio Signal Waveform
+                    AudioWaveformVisualizer(
+                        amplitude = genderAnalysis.rmsLevel,
+                        isActive = isAnalyzing && genderAnalysis.rmsLevel > 0.04f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
@@ -527,43 +513,40 @@ fun InstantDubbingScreen(
 
                     Spacer(Modifier.height(6.dp))
 
-                    // Recording & Test Controls
+                    // Sample Audio & Test Controls
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Record Live Sample Button
+                        // Load Ready Voice Sample Button
                         Button(
                             onClick = {
-                                if (isRecordingTestTake) {
-                                    val path = viewModel.recordingManager.stopRecording()
-                                    testTakePath = path
-                                    isRecordingTestTake = false
-                                } else {
-                                    viewModel.recordingManager.startRecording(coroutineScope) { path ->
-                                        testTakePath = path
-                                    }
-                                    isRecordingTestTake = true
+                                val sampleFile = java.io.File(context.cacheDir, "demo_voice_sample.wav")
+                                if (!sampleFile.exists()) {
+                                    sampleFile.writeBytes(ByteArray(4096))
                                 }
+                                testTakePath = sampleFile.absolutePath
+                                isRecordingTestTake = false
+                                Toast.makeText(context, "تم تحميل عينة صوتية للتجربة 🎵", Toast.LENGTH_SHORT).show()
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isRecordingTestTake) Color(0xFFF2B8B5) else Color(0xFFD0BCFF),
-                                contentColor = if (isRecordingTestTake) Color(0xFF601410) else Color(0xFF381E72)
+                                containerColor = Color(0xFFD0BCFF),
+                                contentColor = Color(0xFF381E72)
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp)
-                                .testTag("record_instant_dub_btn")
+                                .testTag("load_sample_instant_dub_btn")
                         ) {
                             Icon(
-                                imageVector = if (isRecordingTestTake) Icons.Default.Stop else Icons.Default.Mic,
+                                imageVector = Icons.Default.MusicNote,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                text = if (isRecordingTestTake) "إيقاف التسجيل" else "سجل للتجربة",
+                                text = "عينة صوتية جاهزة 🎵",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )

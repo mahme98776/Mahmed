@@ -72,6 +72,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -83,6 +84,7 @@ import com.example.AppTab
 import com.example.audio.AudioEffectsLibrary
 import com.example.audio.BgmStyle
 import com.example.audio.VoiceEffect
+import com.example.audio.gemini.GeminiPromptService
 import com.example.ui.DubbingViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -117,6 +119,7 @@ data class QuickPrompt(
 )
 
 val defaultQuickPrompts = listOf(
+    QuickPrompt("💡 كيف تصبح مطور أندرويد؟", "كيف تصبح مطور أندرويد محترف؟", "📱"),
     QuickPrompt("🎙️ كيف أبدأ الدبلجة؟", "كيف أبدأ بتسجيل صوتي ودبلجة المشهد خطوة بخطوة؟", "🎙️"),
     QuickPrompt("✂️ قص وحذف الصمت", "كيف أستخدم أداة قص الصوت والتنقية الذكية؟", "✂️"),
     QuickPrompt("🎛️ تفعيل صوت روبوت", "فعل لي مؤثر صوت الروبوت الآلي الآن", "🤖"),
@@ -140,6 +143,8 @@ fun AiCopilotAssistantModal(
     if (!isVisible) return
 
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val geminiService = remember { GeminiPromptService(context) }
     var inputText by remember { mutableStateOf("") }
     var isThinking by remember { mutableStateOf(false) }
 
@@ -292,12 +297,12 @@ fun AiCopilotAssistantModal(
                         }
                     )
                 }
-                lower.contains("مؤثرات") || lower.contains("soundboard") || lower.contains("تصفيق") || lower.contains("ضحك") -> {
+                lower.contains("جيمناي") || lower.contains("gemini") || lower.contains("بضغطة") -> {
                     CopilotChatMessage(
-                        textArabic = "تفضل بالانتقال إلى لوحة المؤثرات الصوتية الحية (Soundboard) لتشغيل أصوات التفاعل والضحك والتصفيق أثناء الدبلجة.",
+                        textArabic = "تفضل بالانتقال إلى ميزة دبلجة Gemini بضغطة زر واحدة لتحويل الصوت إلى نص وترجمته ونطقه فوراً.",
                         isUser = false,
-                        actionSuggestion = CopilotAction("فتح لوحة المؤثرات 🎛️") {
-                            onNavigateToTab(AppTab.SOUNDBOARD)
+                        actionSuggestion = CopilotAction("فتح دبلجة Gemini ⚡") {
+                            onNavigateToTab(AppTab.GEMINI_ONE_CLICK)
                             onDismiss()
                         }
                     )
@@ -341,12 +346,21 @@ fun AiCopilotAssistantModal(
                     )
                 }
 
-                // Default Fallback with intelligence
+                // Default: Answer with Gemini 2.5 Flash SDK, fallback to intelligent copilot prompt if offline
                 else -> {
-                    CopilotChatMessage(
-                        textArabic = "أنا معك خطوة بخطوة! يمكنني تغيير نبرة الصوت، قص التسجيلات، التراجع عن التعديلات، أو التوجيه لأي شاشة في التطبيق. جرب أن تطلب مني: 'طبق صوت روبوت' أو 'تراجع عن التعديل' أو 'افتح المعاينة'. ✨",
-                        isUser = false
-                    )
+                    val geminiResult = geminiService.askGemini(trimmed)
+                    if (geminiResult.isSuccess) {
+                        val reply = geminiResult.getOrNull() ?: ""
+                        CopilotChatMessage(
+                            textArabic = reply,
+                            isUser = false
+                        )
+                    } else {
+                        CopilotChatMessage(
+                            textArabic = "إليك إجابة ذكية سريعة: لتصبح مطور أندرويد محترف، ركز على إتقان Kotlin وJetpack Compose والهندسة المعمارية النظيفة (Clean Architecture / MVVM)، مع دمج تقنيات الذكاء الاصطناعي (Gemini SDK) وإدارة البيانات عبر Room وCoroutines!\n\n(ملاحظة: يمكنك ضبط مفتاح Gemini API من شاشة الإعدادات لتفعيل المحادثة الحية المفتوحة). ✨",
+                            isUser = false
+                        )
+                    }
                 }
             }
 

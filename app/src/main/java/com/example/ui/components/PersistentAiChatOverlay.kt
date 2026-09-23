@@ -211,6 +211,16 @@ fun PersistentAiChatOverlay(
 
             val response: OverlayChatMessage = when {
                 // 1. Navigation & Screen shortcuts
+                lower.contains("veo") || lower.contains("lyria") || lower.contains("شامل") || lower.contains("ذكاء") || lower.contains("suite") -> {
+                    onNavigateToTab(AppTab.AI_SUITE)
+                    OverlayChatMessage(
+                        textArabic = "تم نقلك مباشرة إلى استوديو الذكاء الاصطناعي الشامل 🚀 (Gemini Chat • Veo 3 • Lyria 3 • Live API • تفريغ الصوت • Firebase).",
+                        isUser = false,
+                        actionSuggestion = AiOverlayAction("فتح استوديو الذكاء الاصطناعي 🚀") {
+                            onNavigateToTab(AppTab.AI_SUITE)
+                        }
+                    )
+                }
                 lower.contains("فيديو") || lower.contains("دبلجة فيديو") || lower.contains("auto dub") -> {
                     onNavigateToTab(AppTab.VIDEO_DUB)
                     OverlayChatMessage(

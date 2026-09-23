@@ -47,7 +47,7 @@ enum class VoiceDialect(val titleArabic: String, val regionArabic: String, val f
 enum class VoiceCategory(val titleArabic: String, val descriptionArabic: String, val emoji: String) {
     DOCUMENTARY_EPIC("وثائقي وفخم 📜", "نبرة رصينة مهيبة ومخارج حروف واضحة جداً للناشيونال والأفلام الوثائقية", "📜"),
     DRAMA_CINEMATIC("درامي وسينمائي 🎭", "تلوين صوتي عاطفي وعميق للمسلسلات والأفلام والمشاهد التمثيلية", "🎭"),
-    ANIME_CARTOON("أنمي وكرتون 🌟", "طابع سبيستوني كلاسيكي وشخصيات مرحة وبطولية لأفلام الرسوم المتحركة", "🌟"),
+    ANIME_CARTOON("أنمي وكرتون 🌟", "طابع كرتوني كلاسيكي وشخصيات مرحة وبطولية لأفلام الرسوم المتحركة", "🌟"),
     COMMERCIAL_TRAILER("إعلانات وترويج ⚡", "طاقة صوتية متدفقة وجذابة للإعلانات والعروض التشويقية", "⚡"),
     NEWS_BROADCAST("إذاعي وإخباري 🎙️", "إلقاء رسمي متزن ومخارج حروف قوية لنشرات الأخبار والتقارير", "🎙️"),
     AUDIOBOOK_NOVEL("روايات وكتب صوتية 📖", "سرد قصصي تفاعلي هادئ يشد المستمع لفصول الروايات", "📖"),
@@ -140,9 +140,9 @@ object HumanVoiceLibraryRepository {
             avatarEmoji = "📜"
         ),
         HumanVoiceModel(
-            id = "ar_spacetoon_hero_002",
+            id = "ar_hero_male_002",
             nameArabic = "زياد الفارس",
-            titleArabic = "بطل سبيستون الفصيح (أنمي وأكشن)",
+            titleArabic = "بطل المغامرات الفصيح (أنمي وأكشن)",
             gender = VoiceGender.MALE,
             dialect = VoiceDialect.MODERN_STANDARD_FOSHA,
             category = VoiceCategory.ANIME_CARTOON,
@@ -155,7 +155,7 @@ object HumanVoiceLibraryRepository {
             sampleArabicPhrase = "مهما اشتدت الصعاب، سنواصل المسير معاً ولن نستسلم أبداً!",
             isVerifiedPro = true,
             rating = 5.0f,
-            tags = listOf("سبيستون", "أنمي", "شجاعة", "فصحى"),
+            tags = listOf("أنمي", "شجاعة", "فصحى", "بطولة"),
             avatarColorHex = 0xFFD97706,
             avatarEmoji = "🦸"
         ),
@@ -240,9 +240,9 @@ object HumanVoiceLibraryRepository {
             avatarEmoji = "🇸🇾"
         ),
         HumanVoiceModel(
-            id = "ar_spacetoon_heroine_007_rasha",
+            id = "ar_heroine_female_007_rasha",
             nameArabic = "رشا الأمل",
-            titleArabic = "بطلة سبيستون الدافئة والرقيقة",
+            titleArabic = "البطلة الدافئة والشجاعة (أنمي وقصص)",
             gender = VoiceGender.FEMALE,
             dialect = VoiceDialect.MODERN_STANDARD_FOSHA,
             category = VoiceCategory.ANIME_CARTOON,
@@ -255,7 +255,7 @@ object HumanVoiceLibraryRepository {
             sampleArabicPhrase = "سنبقى معاً يداً بيد، نرسم البسمة على وجوه الجميع!",
             isVerifiedPro = true,
             rating = 5.0f,
-            tags = listOf("سبيستون", "رشا", "أنمي", "أمل"),
+            tags = listOf("أنمي", "أمل", "فصحى", "شجاعة"),
             avatarColorHex = 0xFFEC4899,
             avatarEmoji = "✨"
         ),

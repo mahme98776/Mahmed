@@ -210,12 +210,12 @@ fun VolumeNormalizationSheet(
                         tag = "bg_audio_meter"
                     )
 
-                    // Dubbed Voice Mic Meter
+                    // Dubbed Voice Meter
                     val voicePeak = voiceProfile?.peakDb ?: -12.0f
                     val voiceRms = voiceProfile?.rmsDb ?: -16.0f
                     LoudnessMeterRow(
-                        label = if (hasRecordedAudio) "صوت الدبلجة المسجل (الميكروفون)" else "صوت الدبلجة (جاهز للتسجيل)",
-                        icon = Icons.Default.Mic,
+                        label = if (hasRecordedAudio) "صوت الدبلجة المضاف (صوت AI / ملف)" else "مسار صوت الدبلجة",
+                        icon = Icons.Default.GraphicEq,
                         iconTint = Color(0xFFD0BCFF),
                         peakDb = voicePeak,
                         rmsDb = voiceRms,

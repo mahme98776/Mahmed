@@ -50,6 +50,7 @@ fun TeleprompterItem(
     isActive: Boolean,
     onSpeak: () -> Unit,
     onClick: () -> Unit,
+    onOpenTtsInput: (() -> Unit)? = null,
     onNudge: ((Float, Float) -> Unit)? = null,
     onAutoFit: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -155,17 +156,32 @@ fun TeleprompterItem(
                         )
                     }
 
-                    // Speak line button
+                    // Speak line preview button
                     IconButton(
                         onClick = onSpeak,
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.VolumeUp,
-                            contentDescription = "استماع",
+                            contentDescription = "استماع سريع",
                             tint = Color(0xFFD0BCFF),
                             modifier = Modifier.size(16.dp)
                         )
+                    }
+
+                    // Text-to-Speech Take Generator Modal Button
+                    if (onOpenTtsInput != null) {
+                        IconButton(
+                            onClick = onOpenTtsInput,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "توليد نطق الذكاء الاصطناعي للمشهد",
+                                tint = Color(0xFFFFD54F),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
                 }
             }

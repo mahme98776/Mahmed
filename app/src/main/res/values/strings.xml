@@ -1,15 +1,18 @@
 <resources>
-    <string name="app_name">دبلجة</string>
-    <string name="app_full_title">استوديو الدبلجة الذكي</string>
-    <string name="app_subtitle">دبلجة فيديوهات وأصوات مجانية وسهلة</string>
+    <string name="app_name">فويس ماستر برو</string>
+    <string name="app_full_title">فويس ماستر برو | VoiceMaster Pro</string>
+    <string name="app_subtitle">استوديو الدبلجة وهندسة الصوت بالذكاء الاصطناعي</string>
+    <string name="app_copyright_holder">محمد رضا محمود محمود السيد سليمة</string>
+    <string name="app_copyright_address">مصر - محافظة المنوفية - شبين الكوم - شارع القفاص</string>
+    <string name="app_copyright_notice">جميع حقوق الملكية الفكرية والنشر محفوظة © 2026 للأستاذ / محمد رضا محمود محمود السيد سليمة</string>
     
     <string name="tab_studio">الاستوديو</string>
     <string name="tab_projects">مشاريعي</string>
     <string name="tab_voices">الأصوات والمؤثرات</string>
     <string name="tab_ai_dub">الدبلجة بالذكاء الاصطناعي</string>
     
-    <string name="record_dub">تسجيل صوتي</string>
-    <string name="stop_recording">إيقاف التسجيل</string>
+    <string name="import_dub">استيراد صوت</string>
+    <string name="preview_dub">معاينة الدبلجة</string>
     <string name="play">تشغيل</string>
     <string name="pause">إيقاف مؤقت</string>
     <string name="save_project">حفظ المشروع</string>

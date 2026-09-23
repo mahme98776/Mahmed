@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CheckCircle
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Movie
@@ -114,7 +116,7 @@ import com.example.model.SampleClipsRepository
 import com.example.model.ScriptLine
 import com.example.audio.tts.CloudTtsProvider
 import com.example.audio.tts.CloudVoiceCatalog
-import com.example.ui.components.BatchProcessingQueueComponent
+import androidx.compose.material.icons.filled.GraphicEq
 import com.example.ui.components.CloudTtsConfigDialog
 import com.example.ui.components.ExportProjectDialog
 import com.example.ui.components.ShareDubbingOptionsDialog
@@ -134,18 +136,16 @@ import kotlinx.coroutines.launch
 fun VideoAutoDubberScreen(
     viewModel: DubbingViewModel,
     onNavigateToStudio: () -> Unit,
+    onNavigateToYouTubeDub: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val autoDubState by viewModel.autoDubberState.collectAsState()
     val longFormWorkerState by viewModel.longFormWorkerState.collectAsState()
-    val batchState by viewModel.batchState.collectAsState()
     val studioUiState by viewModel.uiState.collectAsState()
     val exportDialogState by viewModel.exportDialogState.collectAsState()
     val videoExportConfig by viewModel.videoExportConfig.collectAsState()
-
-    var selectedDubbingTab by remember { mutableStateOf(0) } // 0 = Single Video, 1 = Batch Queue
     var originalDuckLevel by remember { mutableStateOf(0.25f) }
     var dubVoiceBoost by remember { mutableStateOf(1.20f) }
     var isOriginalMuted by remember { mutableStateOf(false) }
@@ -157,7 +157,9 @@ fun VideoAutoDubberScreen(
     var showPythonCodeModal by remember { mutableStateOf(false) }
     var showCloudTtsDialog by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
+    var showVattSubtitlesDialog by remember { mutableStateOf(false) }
 
+    val vattState by viewModel.vattState.collectAsState()
     val cloudTtsConfig by viewModel.cloudTtsConfig.collectAsState()
 
     // Video File Picker Launcher
@@ -184,140 +186,14 @@ fun VideoAutoDubberScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Tab Selector for Single Video vs Batch Processing Queue
-        Surface(
-            color = Color(0xFF191622),
-            modifier = Modifier.fillMaxWidth()
+        // Single Clip Auto-Dubber View
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Tab 0: Single Video Dubber
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (selectedDubbingTab == 0) Color(0xFF8B5CF6) else Color(0xFF262332),
-                    border = BorderStroke(
-                        1.dp,
-                        if (selectedDubbingTab == 0) Color(0xFFA78BFA) else Color(0xFF38334C)
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { selectedDubbingTab = 0 }
-                        .testTag("tab_single_clip_mode")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Videocam,
-                            contentDescription = null,
-                            tint = if (selectedDubbingTab == 0) Color.White else Color(0xFF94A3B8),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "مقطع مفرد",
-                            color = if (selectedDubbingTab == 0) Color.White else Color(0xFFCBD5E1),
-                            fontSize = 13.sp,
-                            fontWeight = if (selectedDubbingTab == 0) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-                }
-
-                // Tab 1: Batch Processing Queue
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (selectedDubbingTab == 1) Color(0xFF4F46E5) else Color(0xFF262332),
-                    border = BorderStroke(
-                        1.dp,
-                        if (selectedDubbingTab == 1) Color(0xFF818CF8) else Color(0xFF38334C)
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { selectedDubbingTab = 1 }
-                        .testTag("tab_batch_queue_mode")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = if (selectedDubbingTab == 1) Color.White else Color(0xFF94A3B8),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "معالجة الدُفعة",
-                            color = if (selectedDubbingTab == 1) Color.White else Color(0xFFCBD5E1),
-                            fontSize = 13.sp,
-                            fontWeight = if (selectedDubbingTab == 1) FontWeight.Bold else FontWeight.Medium
-                        )
-                        if (batchState.queue.isNotEmpty()) {
-                            Spacer(Modifier.width(6.dp))
-                            Surface(
-                                shape = CircleShape,
-                                color = if (selectedDubbingTab == 1) Color.White else Color(0xFF818CF8),
-                                modifier = Modifier.size(20.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "${batchState.queue.size}",
-                                        color = if (selectedDubbingTab == 1) Color(0xFF4F46E5) else Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (selectedDubbingTab == 1) {
-            // Render Batch Processing Queue View
-            BatchProcessingQueueComponent(
-                batchState = batchState,
-                onImportVideos = { uris -> viewModel.importVideosForBatch(uris) },
-                onAddSamplePack = { viewModel.addSamplePackToBatch() },
-                onRemoveItem = { id -> viewModel.removeBatchItem(id) },
-                onMoveItem = { from, to -> viewModel.moveBatchItem(from, to) },
-                onUpdateItemLanguage = { id, lang -> viewModel.updateBatchItemLanguage(id, lang) },
-                onUpdateItemStyle = { id, style -> viewModel.updateBatchItemStyle(id, style) },
-                onUpdateItemPacing = { id, pacing -> viewModel.updateBatchItemPacing(id, pacing) },
-                onApplyGlobalLanguage = { lang -> viewModel.applyGlobalBatchLanguage(lang) },
-                onApplyGlobalStyle = { style -> viewModel.applyGlobalBatchStyle(style) },
-                onStartBatch = { viewModel.startBatchDubbing() },
-                onPauseBatch = { viewModel.pauseBatchDubbing() },
-                onResumeBatch = { viewModel.resumeBatchDubbing() },
-                onCancelBatch = { viewModel.cancelBatchDubbing() },
-                onRetryFailed = { viewModel.retryFailedBatchDubbing() },
-                onClearQueue = { viewModel.clearBatchQueue() },
-                onClearCompleted = { viewModel.clearCompletedBatch() },
-                onPreviewClipInStudio = { clip ->
-                    viewModel.applyDubbedClipToStudio(clip)
-                    onNavigateToStudio()
-                },
-                modifier = Modifier.weight(1f)
-            )
-        } else {
-            // Render Single Clip Auto-Dubber View
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
         // 1. Header Banner & Easy-Mode Quick Guide
         item {
             Card(
@@ -427,6 +303,69 @@ fun VideoAutoDubberScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // 1.5. YouTube Auto-Dubbing Quick Banner (Inspired by Mikk0git/youtube-auto-dubbing)
+        item {
+            Card(
+                onClick = { onNavigateToYouTubeDub() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        BorderStroke(1.dp, Color(0xFFFF0000).copy(alpha = 0.45f)),
+                        RoundedCornerShape(16.dp)
+                    ),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFFF0000).copy(alpha = 0.08f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFFF0000),
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "دبلجة يوتيوب الآلية (YouTube Auto-Dubbing) 🔴",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "جلب ترجمات يوتيوب تلقائياً، ترجمتها، وتوليد أصوات متوافقة مع الزمن وسرعة الكلام",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "فتح",
+                        tint = Color(0xFFFF0000),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
@@ -558,28 +497,15 @@ fun VideoAutoDubberScreen(
                                         }
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                viewModel.batchDubbingEngine.addVideoToQueue(video)
-                                                selectedDubbingTab = 1
-                                            },
-                                            shape = RoundedCornerShape(10.dp),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF818CF8)),
-                                            border = BorderStroke(1.dp, Color(0xFF6366F1)),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                            modifier = Modifier.testTag("add_current_to_batch_button")
-                                        ) {
-                                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text("إضافة للدُفعة", fontSize = 11.sp)
-                                        }
-                                        OutlinedButton(
+                                        Button(
                                             onClick = { videoPickerLauncher.launch("video/*") },
                                             shape = RoundedCornerShape(10.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                                             modifier = Modifier.testTag("change_video_button")
                                         ) {
-                                            Text("تغيير", fontSize = 11.sp)
+                                            Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("تغيير الفيديو", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -735,7 +661,10 @@ fun VideoAutoDubberScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Language,
                                 contentDescription = null,
@@ -746,10 +675,11 @@ fun VideoAutoDubberScreen(
                             Text(
                                 text = "2. تحديد لغة الدبلجة المستهدفة",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
                             )
                         }
-
+                        Spacer(Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color(0xFF3B82F6).copy(alpha = 0.15f),
@@ -760,7 +690,8 @@ fun VideoAutoDubberScreen(
                                 color = Color(0xFF3B82F6),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                maxLines = 1
                             )
                         }
                     }
@@ -940,26 +871,32 @@ fun VideoAutoDubberScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    ) {
                                         Text("🗣️", fontSize = 16.sp)
                                         Spacer(Modifier.width(6.dp))
                                         Text(
-                                            text = "لهجة المتحدث ونبرة الأداء الصوتي (Dialect):",
+                                            text = "لهجة ونبرة الأداء الصوتي:",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1
                                         )
                                     }
+                                    Spacer(Modifier.width(8.dp))
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                                     ) {
                                         Text(
-                                            text = "${autoDubState.selectedDialect.flagEmoji} ${autoDubState.selectedDialect.nativeRegion}",
+                                            text = "${autoDubState.selectedDialect.flagEmoji} ${autoDubState.selectedDialect.displayNameArabic.split(" ")[0]}",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            maxLines = 1
                                         )
                                     }
                                 }
@@ -968,7 +905,8 @@ fun VideoAutoDubberScreen(
 
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    contentPadding = PaddingValues(horizontal = 2.dp)
+                                    contentPadding = PaddingValues(horizontal = 2.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     items(DubbingDialect.values()) { dialect ->
                                         val isSelected = autoDubState.selectedDialect == dialect
@@ -990,26 +928,35 @@ fun VideoAutoDubberScreen(
                                                     text = dialect.displayNameArabic,
                                                     fontSize = 11.sp,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1
                                                 )
                                             }
                                         }
                                     }
                                 }
 
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = "💡 ${autoDubState.selectedDialect.descriptionArabic}",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    text = "مثال منطوق: \"${autoDubState.selectedDialect.samplePhrase}\"",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                Spacer(Modifier.height(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text(
+                                            text = "💡 ${autoDubState.selectedDialect.descriptionArabic}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(3.dp))
+                                        Text(
+                                            text = "مثال منطوق: \"${autoDubState.selectedDialect.samplePhrase}\"",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1189,12 +1136,12 @@ fun VideoAutoDubberScreen(
             }
         }
 
-        // Spacetoon SFX Soundboard & Auto-Save to Drafts Info Card
+        // SFX Soundboard & Auto-Save to Drafts Info Card
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("spacetoon_soundboard_card"),
+                    .testTag("soundboard_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.4f))
@@ -1212,18 +1159,18 @@ fun VideoAutoDubberScreen(
                                 modifier = Modifier.size(38.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("🌟", fontSize = 18.sp)
+                                    Text("🔊", fontSize = 18.sp)
                                 }
                             }
                             Spacer(Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    text = "مؤثرات سبيستون والمكساج الأسطوري",
+                                    text = "لوحة المؤثرات الصوتية والمكساج الحي",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = "مؤثرات صوتية حية مأخوذة من مسلسلات وأنمي سبيستون",
+                                    text = "مؤثرات صوتية حية فورية ومكساج احترافي",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1246,54 +1193,6 @@ fun VideoAutoDubberScreen(
 
                     Spacer(Modifier.height(14.dp))
 
-                    Text(
-                        text = "⚡ لوحة المؤثرات الصوتية المباشرة (انقر للاستماع فوراً):",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.height(8.dp))
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 2.dp)
-                    ) {
-                        items(SoundEffectsGenerator.soundEffectsList.take(6)) { sfx ->
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(sfx.color).copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, Color(sfx.color).copy(alpha = 0.4f)),
-                                modifier = Modifier
-                                    .clickable {
-                                        SoundEffectsGenerator.playSoundEffect(sfx.id)
-                                    }
-                                    .testTag("sfx_btn_${sfx.id}")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(sfx.emoji, fontSize = 16.sp)
-                                    Spacer(Modifier.width(6.dp))
-                                    Column {
-                                        Text(
-                                            text = sfx.titleArabic,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(sfx.color)
-                                        )
-                                        Text(
-                                            text = "انقر للتشغيل",
-                                            fontSize = 9.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
 
                     // Notice on Auto-Save & Gender Detection
                     Surface(
@@ -1475,6 +1374,192 @@ fun VideoAutoDubberScreen(
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
+                }
+            }
+        }
+
+        // VATT Engine (Video Audio Translation Tool) Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(3.dp, RoundedCornerShape(20.dp))
+                    .testTag("vatt_engine_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.5.dp, Color(0xFF0284C7).copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(0xFF0284C7).copy(alpha = 0.15f),
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Language,
+                                        contentDescription = "VATT Engine",
+                                        tint = Color(0xFF0284C7),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "محرك VATT لدبلجة وترجمة الفيديو",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Color(0xFF0284C7).copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            text = "VATT AI ⚡",
+                                            color = Color(0xFF0284C7),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "استخراج الصوت • تفريغ ASR • ترجمة سياقية • ملفات SRT/VTT • مطابقة السرعة",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Features of VATT Pipeline
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "مميزات محرك VATT (Video Audio Translation Tool):",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0284C7)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "• استخراج الصوت النقي ومطابقة التوقيت بدقة الأجزاء من الثانية\n• إنشاء ملفات ترجمة قياسية SRT و WebVTT قابلة للتصدير والنسخ\n• ضبط سرعة نطق الدبلجة آلياً (Time-Stretch) لتلائم طول المشهد الأصلي\n• مكساج ذكي يخفض صوت الخلفية تلقائياً وقت الكلام (Audio Ducking)",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // VATT Running progress
+                    if (vattState.isRunning) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = vattState.currentStage,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0284C7)
+                                )
+                                Text(
+                                    text = "${(vattState.progress * 100).toInt()}%",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0284C7)
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { vattState.progress },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                color = Color(0xFF0284C7)
+                            )
+                            Spacer(Modifier.height(10.dp))
+                        }
+                    }
+
+                    // VATT Action Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val currentVideo = autoDubState.importedVideo
+                                val currentClip = studioUiState.currentClip
+                                val videoUri = currentVideo?.uriString?.let { Uri.parse(it) }
+                                    ?: currentClip.videoUri?.let { Uri.parse(it) }
+                                    ?: Uri.parse("file://${context.cacheDir.absolutePath}/sample_demo.mp4")
+                                val videoTitle = currentVideo?.title ?: currentClip.title
+                                val duration = currentVideo?.durationSeconds ?: currentClip.durationSeconds
+                                viewModel.executeVattAutoDubbing(videoUri, videoTitle, duration)
+                            },
+                            enabled = !vattState.isRunning,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).testTag("btn_run_vatt")
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = if (vattState.isRunning) "جارٍ المعالجة بمحرك VATT..." else "تشغيل معالجة VATT ⚡",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        if (vattState.srtContent.isNotBlank() || vattState.lastResult != null) {
+                            OutlinedButton(
+                                onClick = { showVattSubtitlesDialog = true },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF0284C7)),
+                                modifier = Modifier.testTag("btn_view_vatt_subtitles")
+                            ) {
+                                Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("ملفات SRT/VTT 📑", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            vattState.lastResult?.dubbedAudioPath?.let { audioPath ->
+                                Button(
+                                    onClick = {
+                                        viewModel.saveDubbedAudioFileToStorage(
+                                            audioPath = audioPath,
+                                            suggestedTitle = "vatt_dubbed_audio_${System.currentTimeMillis() % 10000}"
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    modifier = Modifier.testTag("btn_save_vatt_audio")
+                                ) {
+                                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("حفظ الصوت 💾", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -2103,11 +2188,31 @@ fun VideoAutoDubberScreen(
                             }
                         }
 
-                        // Share Options Button Row
+                        // Action Buttons: Share & Export Synchronized Audio
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            Button(
+                                onClick = {
+                                    viewModel.applyDubbedClipToStudio(dubbedClip)
+                                    viewModel.exportSynchronizedDubbedAudioTrack(dubbedClip)
+                                },
+                                modifier = Modifier
+                                    .weight(1.1f)
+                                    .height(44.dp)
+                                    .testTag("export_synchronized_audio_track_btn"),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF2E7D32),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("تصدير مسار الصوت 🎵", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
                             Button(
                                 onClick = {
                                     viewModel.applyDubbedClipToStudio(dubbedClip)
@@ -2126,7 +2231,7 @@ fun VideoAutoDubberScreen(
                             ) {
                                 Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("خيارات المشاركة", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("خيارات المشاركة", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -2414,7 +2519,6 @@ fun VideoAutoDubberScreen(
         }
     }
     }
-    }
 
     // Python Script Viewer & Direct Copy Dialog
     if (showPythonCodeModal && autoDubState.resultClip != null) {
@@ -2562,6 +2666,123 @@ fun VideoAutoDubberScreen(
             },
             onOpenExportDialog = {
                 viewModel.openExportDialog()
+            },
+            onExportAudio = {
+                viewModel.exportSynchronizedDubbedAudioTrack(currentClip)
+            }
+        )
+    }
+
+    // VATT Subtitles & Timed Transcript Dialog (SRT / WebVTT)
+    if (showVattSubtitlesDialog) {
+        var selectedSubtitleTab by remember { mutableStateOf(0) } // 0 = SRT, 1 = WebVTT
+        val contentToShow = if (selectedSubtitleTab == 0) vattState.srtContent else vattState.vttContent
+
+        AlertDialog(
+            onDismissRequest = { showVattSubtitlesDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = null,
+                        tint = Color(0xFF0284C7),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "ملفات ترجمة VATT المتزامنة 📑",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Subtitle Type Selector
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedSubtitleTab == 0) Color(0xFF0284C7).copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (selectedSubtitleTab == 0) BorderStroke(1.5.dp, Color(0xFF0284C7)) else null,
+                            modifier = Modifier.weight(1f).clickable { selectedSubtitleTab = 0 }
+                        ) {
+                            Text(
+                                text = "صيغة SRT (.srt)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                color = if (selectedSubtitleTab == 0) Color(0xFF0284C7) else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedSubtitleTab == 1) Color(0xFF0284C7).copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (selectedSubtitleTab == 1) BorderStroke(1.5.dp, Color(0xFF0284C7)) else null,
+                            modifier = Modifier.weight(1f).clickable { selectedSubtitleTab = 1 }
+                        ) {
+                            Text(
+                                text = "صيغة WebVTT (.vtt)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                color = if (selectedSubtitleTab == 1) Color(0xFF0284C7) else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF1E293B),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(280.dp)
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            item {
+                                Text(
+                                    text = contentToShow.ifBlank { "لم يتم إنشاء ملف الترجمة بعد، قم بتشغيل معالجة VATT أولاً." },
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFFF1F5F9),
+                                    lineHeight = 17.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clipData = ClipData.newPlainText("VATT Subtitles", contentToShow)
+                        clipboard.setPrimaryClip(clipData)
+                        Toast.makeText(context, "تم نسخ ملف الترجمة بنجاح! 📋", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("نسخ ملف الترجمة", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showVattSubtitlesDialog = false },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("إغلاق", fontSize = 12.sp)
+                }
             }
         )
     }

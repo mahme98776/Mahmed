@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Videocam
@@ -139,16 +140,28 @@ fun AppGuideAndPdfScreen(
         listOf(
             // --- Studio Tools ---
             ToolGuideItem(
-                id = "studio_main",
-                titleArabic = "شاشة الاستوديو والتسجيل الصوتي (Studio & Vocal Booth)",
+                id = "audio_dubbing_studio",
+                titleArabic = "استوديو دبلجة الصوت بالذكاء الاصطناعي (AI Audio Dubber)",
                 category = "🎙️ الاستوديو",
+                targetTab = AppTab.AUDIO_DUB,
+                locationDescription = "قائمة الأدوات السريعة ⚡ أو تبويب [دبلجة الصوت 🎙️]",
+                icon = Icons.Default.GraphicEq,
+                iconColor = Color(0xFF818CF8),
+                whatItDoes = "دبلجة وتحويل ملفات الصوت والتسجيلات المباشرة إلى كافة اللهجات العربية والأصوات السينمائية مع مكس A/B متزامن.",
+                howToUse = "استورد ملف MP3/WAV أو سجل صوتاً، اختر اللهجة المستهدفة والشخصية الصوتية، ثم اضغط بدء الدبلجة بالذكاء الاصطناعي.",
+                proTip = "استخدم زر التبديل A/B لمقارنة نقاء وإحساس الصوت الأصلي مع الصوت المدبلج الجديد."
+            ),
+            ToolGuideItem(
+                id = "studio_main",
+                titleArabic = "شاشة الاستوديو ومحرر الدبلجة (Dubbing Studio & Video Editor)",
+                category = "🎬 الاستوديو",
                 targetTab = AppTab.STUDIO,
-                locationDescription = "التبويب الأول في الشريط السفلي [الاستوديو 🎙️]",
-                icon = Icons.Default.Mic,
+                locationDescription = "التبويب الأول في الشريط السفلي [الاستوديو 🎬]",
+                icon = Icons.Default.Movie,
                 iconColor = Color(0xFFC084FC),
-                whatItDoes = "مساحة العمل المركزية لدبلجة المشاهد الكرتونية والفيديوهات، تسجيل صوت المؤدي، وعرض النصوص بتزامن حي.",
-                howToUse = "اختر مشهداً من المكتبة، استمع للحوار الأصلي، ثم اضغط زر التسجيل الأحمر لبدء تسجيل صوتك أثناء تشغيل الفيديو ومزامنة السكربت.",
-                proTip = "استخدم سماعة رأس لعزل صوت الفيديو عن الميكروفون لضمان نقاء الصوت البشري المسجل بنسبة 100%."
+                whatItDoes = "مساحة العمل المركزية لدبلجة المشاهد الكرتونية والفيديوهات، مزامنة مسارات الصوت، وتطبيق التأثيرات الذكية.",
+                howToUse = "اختر مشهداً من المكتبة، استمع للحوار، واستورد أو ولد صوتاً بالذكاء الاصطناعي مع مزامنة كاملة للسكربت.",
+                proTip = "يمكنك موازنة مستويات الصوت وقص المسار بدقة الملي ثانية للحصول على دبلجة احترافية متقنة."
             ),
             ToolGuideItem(
                 id = "studio_teleprompter",
@@ -176,7 +189,7 @@ fun AppGuideAndPdfScreen(
             ),
             ToolGuideItem(
                 id = "studio_effects",
-                titleArabic = "مؤثرات سبيستون ونبرات الشخصيات (Voice Presets & DSP)",
+                titleArabic = "مؤثرات الاستوديو ونبرات الشخصيات (Voice Presets & DSP)",
                 category = "🎙️ الاستوديو",
                 targetTab = AppTab.STUDIO,
                 locationDescription = "زر [المؤثرات] في أعلى الاستوديو واللوحة المنبثقة",
@@ -184,7 +197,7 @@ fun AppGuideAndPdfScreen(
                 iconColor = Color(0xFF60A5FA),
                 whatItDoes = "معالجة طبقات الصوت الرقمية (DSP) لإعطاء صوتك طابع الرواة الأسطوريين، الأبطال، الأشرار، أو فلاتر الراديو والصدى.",
                 howToUse = "اختر أحد المؤثرات الجاهزة (صوت البطل، صدى درامي، صوت الفضاء، الراديو القديم) وسيطبق فورياً على تسجيلك.",
-                proTip = "اختر تأثير [صدى سبيستون الدرامي Spacetoon Echo] عند دبلجة اللحظات الحماسية والضربات القاضية."
+                proTip = "اختر تأثير [صدى المسرح الدرامي Drama Echo] عند دبلجة اللحظات الحماسية والمؤثرة."
             ),
 
             // --- Video Dubber Tools ---
@@ -303,18 +316,18 @@ fun AppGuideAndPdfScreen(
                 proTip = "يمكنك إضافة التشكيل التلقائي للنص قبل التوليد للحصول على أقصى درجات النقاء اللغوي."
             ),
 
-            // --- Clips Library ---
+            // --- Gemini One-Click Dubbing ---
             ToolGuideItem(
-                id = "clips_library",
-                titleArabic = "مكتبة المشاهد والكرتون الجاهزة (Clips Library)",
-                category = "🎞️ المشاهد",
-                targetTab = AppTab.CLIPS,
-                locationDescription = "التبويب السادس في الشريط السفلي [المشاهد 🎞️]",
-                icon = Icons.Default.Folder,
-                iconColor = Color(0xFF14B8A6),
-                whatItDoes = "مكتبة غنية بمشاهد أنمي وكرتون كلاسيكية وحديثة جاهزة مع نصوصها وحواراتها وموسيقاها للتدرب الفوري.",
-                howToUse = "تصفح حسب الفئات (أكشن، مغامرات، غموض، كوميديا)، واضغط على أي مشهد لتحميله مباشرة في الاستوديو.",
-                proTip = "المشاهد المصنفة بمستوى (مبتدئ) تحتوي على حوارات بطيئة وسهلة التزامن للمبتدئين."
+                id = "gemini_one_click",
+                titleArabic = "دبلجة Gemini الشاملة بضغطة زر (Audio -> Text -> Translate -> Speech)",
+                category = "⚡ الذكاء الاصطناعي",
+                targetTab = AppTab.GEMINI_ONE_CLICK,
+                locationDescription = "التبويب المخصص في قائمة [المزيد من الأدوات ⚡]",
+                icon = Icons.Default.AutoAwesome,
+                iconColor = Color(0xFF38BDF8),
+                whatItDoes = "تحويل الصوت إلى نص (Speech-to-Text)، وترجمته للغة المستهدفة، وتوليد نطق صوتي واقعي فوراً بضغطة زر واحدة عبر Gemini.",
+                howToUse = "سجل صوتك أو اختر مقطعاً صوتياً، وحدد اللغة المستهدفة، ثم اضغط زر الدبلجة الموحدة لإنشاء الدبلجة بالكامل تلقائياً.",
+                proTip = "يمكنك فحص واختبار اتصال Gemini API ومفتاحك في نفس الشاشة لضمان استجابة سريعة ودقيقة."
             ),
 
             // --- Projects Management ---
@@ -328,49 +341,35 @@ fun AppGuideAndPdfScreen(
                 iconColor = Color(0xFFF97316),
                 whatItDoes = "حفظ واسترجاع كل مشاريع الدبلجة بمساراتها الصوتية ونصوصها، مع إمكانية تعديلها أو تصديرها في أي وقت.",
                 howToUse = "اضغط على أي مشروع محفوظ لفتحه ومتابعة العمل عليه، أو استخدم خيارات الحذف والمشاركة والنسخ الاحتياطي.",
-                proTip = "يقوم التطبيق بحفظ عملك تلقائياً كمسودة آمنة لتجنب فقدان التسجيلات في حال إغلاق التطبيق."
+                proTip = "يقوم التطبيق بحفظ عملك تلقائياً كمسودة آمنة لتجنب فقدان أي بيانات في حال إغلاق التطبيق."
             ),
 
-            // --- Dedicated Recording Booth ---
+            // --- Unified Security & Developer Portal ---
             ToolGuideItem(
-                id = "dedicated_recording_booth",
-                titleArabic = "كابينة التسجيل المباشر ومحلل الموجات الحي (Dedicated Recording & Waveform Visualizer)",
-                category = "🎙️ الاستوديو",
-                targetTab = AppTab.RECORDING,
-                locationDescription = "التبويب المخصص في قائمة [المزيد من الأدوات ⚡]",
-                icon = Icons.Default.Mic,
-                iconColor = Color(0xFFE11D48),
-                whatItDoes = "شاشة تسجيل صوتي مخصصة مزودة بمحلل موجات ورسوم بيانية حية (Compose Canvas) تعرض الترددات، والديسيبل (dBFS)، ومؤشر التقطيع (Clipping Alert).",
-                howToUse = "اضغط زر التسجيل الدائري الكبير لبدء التقاط صوت الميكروفون، راقب الموجات الحية، ثم اضغط إيقاف لتطبيق المؤثرات أو تحويله للاستوديو.",
-                proTip = "يمكنك قراءة نص الحوار مباشرة عبر شريط الملقن (Teleprompter) المدمج في نفس الشاشة لراحة أكبر أثناء الأداء."
-            ),
-
-            // --- Soundboard ---
-            ToolGuideItem(
-                id = "soundboard_sfx",
-                titleArabic = "لوحة المؤثرات الصوتية والسينمائية (Soundboard & FX)",
-                category = "🔊 المؤثرات",
-                targetTab = AppTab.SOUNDBOARD,
-                locationDescription = "التبويب الثامن في الشريط السفلي [المؤثرات 🔊]",
-                icon = Icons.Default.GraphicEq,
-                iconColor = Color(0xFF0EA5E9),
-                whatItDoes = "لوحة وسادات تفاعلية (Pads) تطلق مؤثرات كرتونية وسبيستونية شهيرة فور الضغط عليها.",
-                howToUse = "انقر على أي وسادة لتشغيل المؤثر (أصوات القتال، الصدمة الكوميدية، اللمعان السحري، الركض، التنويم).",
-                proTip = "يمكنك استخدام هذه المؤثرات الحية أثناء تسجيل صوتك في الاستوديو لإضافة بهجة وحيوية للمشهد."
+                id = "security_dev_portal",
+                titleArabic = "أمان الأجهزة وبوابة التطوير (Security & Developer Portal)",
+                category = "🛡️ الأمان والتطوير",
+                targetTab = AppTab.SECURITY_DASHBOARD,
+                locationDescription = "التبويب المخصص في قائمة [المزيد من الأدوات ⚡] والإعدادات",
+                icon = Icons.Default.Security,
+                iconColor = Color(0xFFFFD54F),
+                whatItDoes = "لوحة موحدة لرادار صد الهجمات وتتبع أجهزة Firebase Auth مع وصول مباشر لأدوات المطور وفحص المحركات وتشخيص Gemini API.",
+                howToUse = "ادخل مباشرة للوحة لمراجعة سلامة النظام وسجل الأجهزة المصرحة وطباعة التقارير وإجراء اختبارات المحركات.",
+                proTip = "يمكن فحص حالة المحركات والاتصال بنقرة واحدة بدون الحاجة لرموز أو تسجيل دخول معقد."
             ),
 
             // --- Update & Web Portal ---
             ToolGuideItem(
-                id = "mody_org_updates",
-                titleArabic = "مركز التحديثات وبوابة الويب mody.org (Updates & Web Portal)",
+                id = "voicemaster_updates",
+                titleArabic = "مركز التحديثات وبوابة الويب voicemaster.org (Updates & Web Portal)",
                 category = "⚡ دبلجة فورية",
                 targetTab = AppTab.UPDATE_CENTER,
                 locationDescription = "قائمة الأدوات الإضافية [مركز التحديثات والويب 🌐]",
                 icon = Icons.Default.OpenInNew,
                 iconColor = Color(0xFF38BDF8),
-                whatItDoes = "بوابة توزيع التحديثات mody.org لرفع وتنزيل حزم APK الجديدة وإدارة الإصدارات والمطورين.",
-                howToUse = "ادخل مركز التحديثات لفحص الإصدارات الجديدة، أو افتح صفحة المطور لرفع ملف APK ونشر التحديث للمستخدمين.",
-                proTip = "يمكن تشغيل خادم الويب المدمج والدخول من متصفح الكمبيوتر على نفس شبكة الواي فاي بسهولة."
+                whatItDoes = "بوابة توزيع التحديثات الرسمية voicemaster.org لفحص وتنزيل أحدث حزم APK واستعراض سجل التحسينات.",
+                howToUse = "ادخل مركز التحديثات لفحص الإصدارات الجديدة، أو افتح صفحة الويب لتنزيل ملف الـ APK المباشر على أي جهاز.",
+                proTip = "يمكن تشغيل خادم الويب المدمج والدخول من متصفح الكمبيوتر أو هاتف آخر على نفس شبكة الواي فاي بسهولة."
             ),
 
             // --- Export Dialog ---
@@ -672,7 +671,7 @@ fun AppGuideAndPdfScreen(
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "جرب كتابة كلمات أخرى مثل (تسجيل، تشكيل، مكساج، تصدير، سبيستون)",
+                                "جرب كتابة كلمات أخرى مثل (تسجيل، تشكيل، مكساج، تصدير، أنمي)",
                                 color = Color(0xFF94A3B8),
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center
@@ -1137,7 +1136,7 @@ fun ProductionWorkflowGuideCard() {
                 "1. اختر مشهداً من تبويب [المشاهد 🎞️] أو استورد فيديو خارجي من [دبلجة فيديو 📹].",
                 "2. في [الاستوديو 🎙️]، اضغط زر التشغيل لمشاهدة الفيديو وحفظ توقيت الحوار.",
                 "3. ارتدِ سماعات الرأس ثم اضغط على زر التسجيل الأحمر لبدء الإلقاء بصوتك.",
-                "4. اضبط مستويات المسارات الثلاثة، واختر مؤثر الصوت (مثل صدى سبيستون أو البطل).",
+                "4. اضبط مستويات المسارات الثلاثة، واختر مؤثر الصوت (مثل صدى المسرح أو البطل).",
                 "5. انتقل لتبويب [معاينة ومعالجة 🎬] واستخدم ممسحة المقارنة Split لتفقد تزامن الشفاه.",
                 "6. اضغط على [تدقيق الحركات ✍️] للتأكد من التشكيل العربي الفصيح.",
                 "7. اضغط [تصدير المشروع] واختر فيديو MP4 بجودة 1080p لتحصل على فيديو مدبلج متكامل!"

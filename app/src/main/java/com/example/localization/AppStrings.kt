@@ -3,22 +3,22 @@ package com.example.localization
 object AppStrings {
 
     fun appTitle(lang: AppLanguage): String = when (lang) {
-        AppLanguage.ARABIC -> "دبلجة الفيديو والذكاء الاصطناعي"
-        AppLanguage.ENGLISH -> "AI Video & Voice Dubbing"
-        AppLanguage.SPANISH -> "Doblaje de Video e IA"
-        AppLanguage.FRENCH -> "Doublage Vidéo et IA"
-        AppLanguage.GERMAN -> "KI Video- & Sprach-Synchronisation"
-        AppLanguage.TURKISH -> "AI Video ve Ses Dublajı"
-        AppLanguage.RUSSIAN -> "ИИ Дубляж видео и голоса"
-        AppLanguage.CHINESE -> "AI 视频与语音配音"
-        AppLanguage.JAPANESE -> "AI 動画・音声吹き替え"
-        AppLanguage.KOREAN -> "AI 비디오 & 음성 더빙"
-        AppLanguage.ITALIAN -> "Doppiaggio Video e IA"
-        AppLanguage.PORTUGUESE -> "Dublagem de Vídeo com IA"
-        AppLanguage.HINDI -> "एआई वीडियो और वॉयस डबिंग"
-        AppLanguage.INDONESIAN -> "Dubbing Video & Suara AI"
-        AppLanguage.PERSIAN -> "دوبله ویدیو و هوش مصنوعی"
-        AppLanguage.URDU -> "اے آئی ویڈیو اور آواز ڈبنگ"
+        AppLanguage.ARABIC -> "فويس ماستر برو | VoiceMaster Pro"
+        AppLanguage.ENGLISH -> "VoiceMaster Pro | AI Dubbing Studio"
+        AppLanguage.SPANISH -> "VoiceMaster Pro | Estudio de Doblaje IA"
+        AppLanguage.FRENCH -> "VoiceMaster Pro | Studio de Doublage IA"
+        AppLanguage.GERMAN -> "VoiceMaster Pro | KI-Synchronstudio"
+        AppLanguage.TURKISH -> "VoiceMaster Pro | AI Dublaj Stüdyosu"
+        AppLanguage.RUSSIAN -> "VoiceMaster Pro | ИИ Студия дубляжа"
+        AppLanguage.CHINESE -> "VoiceMaster Pro | AI 配音工作室"
+        AppLanguage.JAPANESE -> "VoiceMaster Pro | AI 吹き替えスタジオ"
+        AppLanguage.KOREAN -> "VoiceMaster Pro | AI 더빙 스튜디오"
+        AppLanguage.ITALIAN -> "VoiceMaster Pro | Studio Doppiaggio IA"
+        AppLanguage.PORTUGUESE -> "VoiceMaster Pro | Estúdio de Dublagem IA"
+        AppLanguage.HINDI -> "VoiceMaster Pro | एआई डबिंग स्टूडियो"
+        AppLanguage.INDONESIAN -> "VoiceMaster Pro | Studio Dubbing AI"
+        AppLanguage.PERSIAN -> "ویس مستر پرو | VoiceMaster Pro"
+        AppLanguage.URDU -> "وائس ماسٹر پرو | VoiceMaster Pro"
     }
 
     fun tabVideoDub(lang: AppLanguage): String = when (lang) {

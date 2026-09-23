@@ -92,7 +92,7 @@ class GeminiAiScriptGenerator(private val context: Context) {
     ): Result<List<ScriptLine>> = withContext(Dispatchers.IO) {
         try {
             val prefs = context.getSharedPreferences("app_ai_prefs", Context.MODE_PRIVATE)
-            val savedKey = prefs.getString("gemini_api_key", "AQ.Ab8RN6KgYBCKjgE9alN3jLNuL5Wm1qx-U9BIu6DioS1zBQNezw") ?: "AQ.Ab8RN6KgYBCKjgE9alN3jLNuL5Wm1qx-U9BIu6DioS1zBQNezw"
+            val savedKey = prefs.getString("gemini_api_key", "") ?: ""
             
             val key = apiKey.ifBlank {
                 savedKey.ifBlank {
@@ -138,7 +138,7 @@ class GeminiAiScriptGenerator(private val context: Context) {
                 appendLine("1. Natural Lip-Sync: Syllable counts and phrase lengths MUST match the character's speaking window.")
                 appendLine("2. Emotion & Tonality: Inject profound theatrical depth, heroism, wit, or intimacy matching the scene mood.")
                 appendLine("3. Dialect Accuracy: Strictly follow the selected dialect vocabulary, phrasing, and idioms.")
-                appendLine("4. Distinct Characters: Distribute lines across appropriate voice types (e.g. SPACETOON_HERO, SPACETOON_HEROINE, SPACETOON_NARRATOR, DRAMATIC, ARABIC_MALE, ARABIC_FEMALE).")
+                appendLine("4. Distinct Characters: Distribute lines across appropriate voice types (e.g. HERO_MALE, HEROINE_FEMALE, EPIC_NARRATOR, DRAMATIC, ARABIC_MALE, ARABIC_FEMALE).")
                 appendLine()
                 appendLine("Return a strict JSON array of dialogue script items according to this structure:")
                 appendLine("""
@@ -150,7 +150,7 @@ class GeminiAiScriptGenerator(private val context: Context) {
                     "textOriginal": "Original source or English translation",
                     "startSeconds": 0.0,
                     "endSeconds": 4.5,
-                    "voiceType": "SPACETOON_HERO",
+                    "voiceType": "HERO_MALE",
                     "speakerGender": "MALE"
                   }
                 ]
@@ -276,56 +276,6 @@ class GeminiAiScriptGenerator(private val context: Context) {
         val duration = clip.durationSeconds.toFloat()
 
         return when (clip.id) {
-            "anime_spacetoon_hero" -> listOf(
-                ScriptLine(
-                    id = "gemini_anime_1",
-                    characterName = "بطل الأنمي (حسام)",
-                    characterAvatar = "🦸",
-                    textArabic = "لن أسمح لكم بنشر الظلام في كوكبنا.. طاقة الرياح الصاعقة، انطلقي!",
-                    textOriginal = "I will not let darkness take over our world.. Thunder wind energy, unleash!",
-                    startSeconds = 1.0f,
-                    endSeconds = (duration * 0.25f).coerceAtLeast(6.5f),
-                    voiceType = "SPACETOON_HERO",
-                    speakerGender = "MALE",
-                    genderConfidence = 95
-                ),
-                ScriptLine(
-                    id = "gemini_anime_2",
-                    characterName = "المنافس الغامض (كاي)",
-                    characterAvatar = "🦹",
-                    textArabic = "هاهاها! مهما حاولت يا حسام، قوتك وحدك لن تكفي للتصدي لدرع الظلال!",
-                    textOriginal = "Hahaha! No matter how hard you try Hussam, your power alone is not enough!",
-                    startSeconds = (duration * 0.28f).coerceAtLeast(7.0f),
-                    endSeconds = (duration * 0.55f).coerceAtLeast(14.0f),
-                    voiceType = "DRAMATIC",
-                    speakerGender = "MALE",
-                    genderConfidence = 92
-                ),
-                ScriptLine(
-                    id = "gemini_anime_3",
-                    characterName = "البطلة (سلمى)",
-                    characterAvatar = "🌸",
-                    textArabic = "أنت لست وحدك يا حسام! قلوبنا وعزيمتنا تتحد معاً لتحقيق النصر!",
-                    textOriginal = "You are not alone Hussam! Our hearts and will unite for victory!",
-                    startSeconds = (duration * 0.58f).coerceAtLeast(15.0f),
-                    endSeconds = (duration * 0.80f).coerceAtLeast(20.5f),
-                    voiceType = "SPACETOON_HEROINE",
-                    speakerGender = "FEMALE",
-                    genderConfidence = 96
-                ),
-                ScriptLine(
-                    id = "gemini_anime_4",
-                    characterName = "راوي سبيستون الأسطوري",
-                    characterAvatar = "🌟",
-                    textArabic = "وهكذا يثبت الأبطال أن الصداقة والإرادة الصادقة تصنع المعجزات دائماً!",
-                    textOriginal = "And so our heroes prove that true friendship and will always create miracles!",
-                    startSeconds = (duration * 0.82f).coerceAtLeast(21.5f),
-                    endSeconds = (duration * 0.98f).coerceAtLeast(26.0f),
-                    voiceType = "SPACETOON_NARRATOR",
-                    speakerGender = "MALE",
-                    genderConfidence = 94
-                )
-            )
             "korean_drama_seoul" -> listOf(
                 ScriptLine(
                     id = "gemini_kdrama_1",
@@ -347,7 +297,7 @@ class GeminiAiScriptGenerator(private val context: Context) {
                     textOriginal = "I tried so hard to forget all the promises we made in the rain, but my heart failed!",
                     startSeconds = (duration * 0.33f).coerceAtLeast(8.0f),
                     endSeconds = (duration * 0.65f).coerceAtLeast(16.0f),
-                    voiceType = "SPACETOON_HEROINE",
+                    voiceType = "HEROINE_FEMALE",
                     speakerGender = "FEMALE",
                     genderConfidence = 97
                 ),
@@ -425,7 +375,7 @@ class GeminiAiScriptGenerator(private val context: Context) {
                     textOriginal = "Control room: A mysterious distress signal detected from the Red Planet orbit!",
                     startSeconds = 0.5f,
                     endSeconds = (duration * 0.48f).coerceAtLeast(3.5f),
-                    voiceType = "SPACETOON_HERO",
+                    voiceType = "HERO_MALE",
                     speakerGender = "MALE",
                     genderConfidence = 94
                 ),
@@ -445,23 +395,23 @@ class GeminiAiScriptGenerator(private val context: Context) {
             else -> {
                 val lines = mutableListOf<ScriptLine>()
                 val numSegments = maxOf(4, (duration / 6.0f).toInt())
-                val isAnime = clip.category.contains("أنمي") || clip.title.contains("أنمي") || customStyle.contains("أنمي") || customStyle.contains("سبيستون")
+                val isAnime = clip.category.contains("أنمي") || clip.title.contains("أنمي") || customStyle.contains("أنمي") || customStyle.contains("كرتون")
                 val isKDrama = clip.category.contains("كوري") || clip.title.contains("كوري") || customStyle.contains("كوري") || customStyle.contains("دراما")
                 
                 val animeDialogues = listOf(
-                    Triple("بطل الأنمي (حسام)", "🦸", "SPACETOON_HERO") to ("أيها الأبطال، طاقة الإرادة في قلوبنا لن تنطفئ أبداً! انطلقوا الآن!" to "MALE"),
+                    Triple("بطل الأنمي (حسام)", "🦸", "HERO_MALE") to ("أيها الأبطال، طاقة الإرادة في قلوبنا لن تنطفئ أبداً! انطلقوا الآن!" to "MALE"),
                     Triple("المنافس الشجاع (كاي)", "🦹", "DRAMATIC") to ("مهما كانت قوة الخصم، سنخوض هذه المواجهة بكل ما نملك من شجاعة!" to "MALE"),
-                    Triple("البطلة (سلمى)", "🌸", "SPACETOON_HEROINE") to ("قلوبنا وعزيمتنا متحدة معاً.. سنحمي كوكبنا ونصنع غداً مشرقاً!" to "FEMALE"),
-                    Triple("راوي سبيستون الأسطوري", "🌟", "SPACETOON_NARRATOR") to ("وهكذا يثبت أبطال المستقبل أن الصداقة والإخلاص يتفوقان على كل الصعاب!" to "MALE"),
-                    Triple("بطل الأنمي (حسام)", "🦸", "SPACETOON_HERO") to ("استعدوا للضربة الحاسمة! طاقة الصاعقة الذهبية، اتحدي وانطلقي!" to "MALE"),
+                    Triple("البطلة (سلمى)", "🌸", "HEROINE_FEMALE") to ("قلوبنا وعزيمتنا متحدة معاً.. سنحمي كوكبنا ونصنع غداً مشرقاً!" to "FEMALE"),
+                    Triple("الراوي الملحمي الأسطوري", "🌟", "EPIC_NARRATOR") to ("وهكذا يثبت أبطال المستقبل أن الصداقة والإخلاص يتفوقان على كل الصعاب!" to "MALE"),
+                    Triple("بطل الأنمي (حسام)", "🦸", "HERO_MALE") to ("استعدوا للضربة الحاسمة! طاقة الصاعقة الذهبية، اتحدي وانطلقي!" to "MALE"),
                     Triple("المنافس الشجاع (كاي)", "🦹", "DRAMATIC") to ("هذا هو الأداء الحقيقي الذي كنت أنتظره منك يا حسام!" to "MALE")
                 )
 
                 val kdramaDialogues = listOf(
                     Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to ("في تلك اللحظة التي التقت فيها أعيننا، علمت أن قدري مرتبط بكِ للأبد." to "MALE"),
-                    Triple("البطلة (يون سو)", "👩‍💼", "SPACETOON_HEROINE") to ("لقد عشت طويلاً أنتظر هذا الاعتراف الصادق وسط كل هذه العواصف." to "FEMALE"),
+                    Triple("البطلة (يون سو)", "👩‍💼", "HEROINE_FEMALE") to ("لقد عشت طويلاً أنتظر هذا الاعتراف الصادق وسط كل هذه العواصف." to "FEMALE"),
                     Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to ("لن أسمح لأي شيء في هذا العالم أن يفرقنا بعد اليوم.. سأكون بجانبكِ دائماً." to "MALE"),
-                    Triple("راوية الدراما", "✨", "SPACETOON_HEROINE") to ("وهكذا تذوب آلام الماضي وتشرق شمس الأمل والحب في قلوب الجميع من جديد." to "FEMALE"),
+                    Triple("راوية الدراما", "✨", "HEROINE_FEMALE") to ("وهكذا تذوب آلام الماضي وتشرق شمس الأمل والحب في قلوب الجميع من جديد." to "FEMALE"),
                     Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to ("دعينا ننسى كل ما مضى ونمضي معاً في هذا الدرب المليء بالدفء والسلام." to "MALE")
                 )
 

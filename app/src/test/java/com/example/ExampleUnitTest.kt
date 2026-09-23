@@ -76,4 +76,27 @@ class ExampleUnitTest {
       assertNotNull("Preset must map to valid VoiceEffect enum", preset.voiceEffectEnum)
     }
   }
+
+  @Test
+  fun voiceRecordingEntity_instantiationAndProperties() {
+    val entity = com.example.data.VoiceRecordingEntity(
+      id = 1L,
+      title = "تسجيل اختباري",
+      filePath = "/storage/emulated/0/recording_1.m4a",
+      durationSeconds = 4.2f,
+      fileSizeBytes = 65536L,
+      voiceEffect = "ROBOT",
+      detectedGender = "MALE",
+      associatedScript = "مرحباً بكم في الدبلجة",
+      timestamp = 1700000000000L
+    )
+    assertEquals(1L, entity.id)
+    assertEquals("تسجيل اختباري", entity.title)
+    assertEquals("/storage/emulated/0/recording_1.m4a", entity.filePath)
+    assertEquals(4.2f, entity.durationSeconds, 0.01f)
+    assertEquals(65536L, entity.fileSizeBytes)
+    assertEquals("ROBOT", entity.voiceEffect)
+    assertEquals("MALE", entity.detectedGender)
+    assertEquals("مرحباً بكم في الدبلجة", entity.associatedScript)
+  }
 }

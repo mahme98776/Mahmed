@@ -65,6 +65,7 @@ fun ShareDubbingOptionsDialog(
     onShareVideo: () -> Unit,
     onShareAudio: () -> Unit,
     onOpenExportDialog: () -> Unit,
+    onExportAudio: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (!isVisible) return
@@ -262,6 +263,64 @@ fun ShareDubbingOptionsDialog(
                             tint = Color(0xFFCAC4D0),
                             modifier = Modifier.size(18.dp)
                         )
+                    }
+                }
+
+                // Export Synchronized Audio Track Directly to Storage
+                if (onExportAudio != null) {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2B22)),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onDismiss()
+                                onExportAudio()
+                            }
+                            .testTag("share_option_export_audio_track")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(0xFF2E7D32),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = null,
+                                        tint = Color(0xFFA6D4A8),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "حفظ وتصدير مسار الصوت المتزامن 💾",
+                                    color = Color(0xFFE6E1E5),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "تصدير المسار الصوتي الكامل المتزامن بدقة WAV/MP3 وحفظه في مجلد Music بالجهاز",
+                                    color = Color(0xFFA6D4A8),
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                tint = Color(0xFFA6D4A8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
 

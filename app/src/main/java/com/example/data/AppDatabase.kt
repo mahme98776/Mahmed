@@ -5,9 +5,14 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [DubbingProject::class], version = 1, exportSchema = false)
+@Database(
+    entities = [DubbingProject::class, VoiceRecordingEntity::class],
+    version = 2,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dubbingDao(): DubbingDao
+    abstract fun voiceRecordingDao(): VoiceRecordingDao
 
     companion object {
         @Volatile

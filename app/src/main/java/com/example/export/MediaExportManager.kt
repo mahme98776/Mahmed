@@ -54,40 +54,74 @@ sealed class ExportResult {
 class MediaExportManager(private val context: Context) {
 
     /**
-     * Export dubbing project as MP3/M4A Audio to External Storage (Music / Downloads)
+     * Export the final synchronized dubbed audio track as a separate file to device storage (Music/VoiceMasterPro).
+     * Synthesizes all script lines to exact timeline positions, mixes in recorded audio if present,
+     * and saves to device storage with MediaStore registration.
      */
-    suspend fun exportAudio(
+    suspend fun exportSynchronizedAudioTrack(
         clip: DubbingClip,
-        project: DubbingProject?,
-        recordedAudioPath: String?,
+        scriptLines: List<ScriptLine> = clip.scriptLines,
+        recordedAudioPath: String? = null,
+        project: DubbingProject? = null,
         customTitle: String? = null,
+        syncOffsetMs: Long = 0L,
         onProgress: (Float, String) -> Unit = { _, _ -> }
     ): ExportResult = withContext(Dispatchers.IO) {
         try {
-            onProgress(0.1f, "جاري تحضير الملف الصوتي للدبلجة...")
+            onProgress(0.1f, "جاري تحضير ومزامنة المسار الصوتي النهائي المدبلج...")
 
-            val sourcePath = recordedAudioPath ?: project?.recordedAudioPath
-            if (sourcePath == null || !File(sourcePath).exists()) {
-                return@withContext ExportResult.Error("لا يوجد تسجيل صوتي محفوظ للتصدير. يرجى تسجيل الصوت أولاً!")
+            val linesWithAudio = scriptLines.filter { it.customAudioPath != null && File(it.customAudioPath).exists() }
+            val existingRecordedPath = recordedAudioPath?.takeIf { File(it).exists() }
+                ?: project?.recordedAudioPath?.takeIf { File(it).exists() }
+
+            if (linesWithAudio.isEmpty() && existingRecordedPath == null) {
+                return@withContext ExportResult.Error("لا توجد مقاطع صوتية مدبلجة أو تسجيل صوتي متوفر للتصدير. يرجى توفير صوت مدبلج أولاً!")
             }
 
-            val sourceFile = File(sourcePath)
+            var sourceAudioFile: File? = null
+
+            // If we have individual synchronized lines, build the full master timeline audio track
+            if (linesWithAudio.isNotEmpty()) {
+                onProgress(0.25f, "جاري مطابقة ومزامنة المقاطع الصوتية (${linesWithAudio.size} مقطع) حسب التوقيت الزمني الدقيق...")
+                val totalDuration = calculateEffectiveDuration(clip, scriptLines)
+                val timelineFile = buildTimelineDubbedAudioTrack(
+                    lines = scriptLines,
+                    totalDurationSec = totalDuration,
+                    syncOffsetMs = syncOffsetMs
+                )
+                if (timelineFile != null && timelineFile.exists() && timelineFile.length() > 44) {
+                    sourceAudioFile = timelineFile
+                }
+            }
+
+            // Fallback to recordedAudioPath if timeline synthesis was not available or empty
+            if (sourceAudioFile == null && existingRecordedPath != null) {
+                sourceAudioFile = File(existingRecordedPath)
+            }
+
+            if (sourceAudioFile == null || !sourceAudioFile.exists()) {
+                return@withContext ExportResult.Error("تعذر إنشاء ملف المسار الصوتي المتزامن.")
+            }
+
+            onProgress(0.65f, "جاري حفظ المسار الصوتي في ذاكرة الجهاز (Music/VoiceMasterPro)...")
+
             val title = customTitle?.takeIf { it.isNotBlank() } ?: project?.title ?: "دبلجة_${clip.title}"
             val sanitizedTitle = title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val fileName = "${sanitizedTitle}_${System.currentTimeMillis() % 10000}.mp3"
-
-            onProgress(0.4f, "جاري كتابة الملف إلى وحدة التخزين الخارجية...")
+            val isWav = sourceAudioFile.name.endsWith(".wav", ignoreCase = true) || isWavHeader(sourceAudioFile)
+            val extension = if (isWav) "wav" else "mp3"
+            val mimeType = if (isWav) "audio/wav" else "audio/mpeg"
+            val fileName = "${sanitizedTitle}_تراك_صوتي_متزامن_${System.currentTimeMillis() % 10000}.$extension"
 
             var savedUri: Uri? = null
-            var savedPath: String = ""
+            var savedPath = ""
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val contentValues = ContentValues().apply {
                     put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
-                    put(MediaStore.Audio.Media.MIME_TYPE, "audio/mpeg")
-                    put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/DubbingStudio")
-                    put(MediaStore.Audio.Media.TITLE, title)
-                    put(MediaStore.Audio.Media.ARTIST, "استوديو دبلجة المقاطع العربي")
+                    put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
+                    put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/VoiceMasterPro")
+                    put(MediaStore.Audio.Media.TITLE, "$title - المسار الصوتي المتزامن")
+                    put(MediaStore.Audio.Media.ARTIST, "فويس ماستر برو | VoiceMaster Pro")
                     put(MediaStore.Audio.Media.ALBUM, clip.title)
                     put(MediaStore.Audio.Media.IS_PENDING, 1)
                 }
@@ -99,7 +133,7 @@ class MediaExportManager(private val context: Context) {
 
                 if (uri != null) {
                     context.contentResolver.openOutputStream(uri)?.use { out ->
-                        FileInputStream(sourceFile).use { input ->
+                        FileInputStream(sourceAudioFile).use { input ->
                             input.copyTo(out)
                         }
                     }
@@ -107,7 +141,7 @@ class MediaExportManager(private val context: Context) {
                     contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
                     context.contentResolver.update(uri, contentValues, null, null)
                     savedUri = uri
-                    savedPath = "Music/DubbingStudio/$fileName"
+                    savedPath = "Music/VoiceMasterPro/$fileName"
                 }
             }
 
@@ -115,21 +149,21 @@ class MediaExportManager(private val context: Context) {
             if (savedUri == null) {
                 val musicDir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
-                    "DubbingStudio"
+                    "VoiceMasterPro"
                 )
                 if (!musicDir.exists()) musicDir.mkdirs()
                 val destFile = File(musicDir, fileName)
-                sourceFile.copyTo(destFile, overwrite = true)
+                sourceAudioFile.copyTo(destFile, overwrite = true)
                 savedPath = destFile.absolutePath
                 MediaScannerConnection.scanFile(
                     context,
                     arrayOf(destFile.absolutePath),
-                    arrayOf("audio/mpeg"),
+                    arrayOf(mimeType),
                     null
                 )
             }
 
-            onProgress(1.0f, "تم تصدير الملف الصوتي بنجاح! 🎵✨")
+            onProgress(1.0f, "تم تصدير مسار الصوت المتزامن بنجاح إلى وحدة التخزين! 🎵✨")
             ExportResult.Success(
                 uri = savedUri,
                 filePath = savedPath,
@@ -138,9 +172,30 @@ class MediaExportManager(private val context: Context) {
             )
         } catch (e: Exception) {
             e.printStackTrace()
-            ExportResult.Error("فشل تصدير الصوت: ${e.localizedMessage ?: e.message}")
+            ExportResult.Error("فشل تصدير مسار الصوت المتزامن: ${e.localizedMessage ?: e.message}")
         }
     }
+
+    /**
+     * Export dubbing project as audio file to External Storage (Music / Downloads)
+     */
+    suspend fun exportAudio(
+        clip: DubbingClip,
+        project: DubbingProject? = null,
+        recordedAudioPath: String? = null,
+        scriptLines: List<ScriptLine> = clip.scriptLines,
+        customTitle: String? = null,
+        syncOffsetMs: Long = 0L,
+        onProgress: (Float, String) -> Unit = { _, _ -> }
+    ): ExportResult = exportSynchronizedAudioTrack(
+        clip = clip,
+        scriptLines = scriptLines,
+        recordedAudioPath = recordedAudioPath,
+        project = project,
+        customTitle = customTitle,
+        syncOffsetMs = syncOffsetMs,
+        onProgress = onProgress
+    )
 
     /**
      * Export dubbing project as MP4 Video with rendered animated scene, synchronized subtitles,
@@ -170,7 +225,27 @@ class MediaExportManager(private val context: Context) {
             // Scale factor relative to baseline 720p (1280x720)
             val scaleFactor = (width / 1280f).coerceAtLeast(0.5f)
 
-            val audioPath = recordedAudioPath ?: project?.recordedAudioPath
+            var resolvedAudioPath = recordedAudioPath ?: project?.recordedAudioPath
+            var tempSynthesizedExportAudio: File? = null
+
+            // Fallback: If no single audio file path is provided, automatically build the dubbed track from script lines
+            if (resolvedAudioPath == null || !File(resolvedAudioPath).exists()) {
+                val linesWithAudio = scriptLines.filter { it.customAudioPath != null && File(it.customAudioPath).exists() }
+                if (linesWithAudio.isNotEmpty()) {
+                    onProgress(0.08f, "جاري تجميع المقاطع الصوتية في مسار دبلجة متزامن...")
+                    val synthesized = buildTimelineDubbedAudioTrack(
+                        lines = scriptLines,
+                        totalDurationSec = durationSeconds,
+                        syncOffsetMs = 0
+                    )
+                    if (synthesized != null && synthesized.exists()) {
+                        tempSynthesizedExportAudio = synthesized
+                        resolvedAudioPath = synthesized.absolutePath
+                    }
+                }
+            }
+
+            val audioPath = resolvedAudioPath
 
             // 1. Setup MediaCodec Video Encoder
             val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
@@ -492,7 +567,7 @@ class MediaExportManager(private val context: Context) {
                 val contentValues = ContentValues().apply {
                     put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
                     put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                    put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/DubbingStudio")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/VoiceMasterPro")
                     put(MediaStore.Video.Media.TITLE, title)
                     put(MediaStore.Video.Media.IS_PENDING, 1)
                 }
@@ -512,14 +587,14 @@ class MediaExportManager(private val context: Context) {
                     contentValues.put(MediaStore.Video.Media.IS_PENDING, 0)
                     context.contentResolver.update(uri, contentValues, null, null)
                     savedUri = uri
-                    savedPath = "Movies/DubbingStudio/$fileName"
+                    savedPath = "Movies/VoiceMasterPro/$fileName"
                 }
             }
 
             if (savedUri == null) {
                 val moviesDir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
-                    "DubbingStudio"
+                    "VoiceMasterPro"
                 )
                 if (!moviesDir.exists()) moviesDir.mkdirs()
                 val destFile = File(moviesDir, fileName)
@@ -613,7 +688,8 @@ class MediaExportManager(private val context: Context) {
                     onProgress(0.12f, "جاري تجميع وتوليد مسار الصوت المدبلج بدقة التوقيت...")
                     val synthesized = buildTimelineDubbedAudioTrack(
                         lines = scriptLines,
-                        totalDurationSec = clip.durationSeconds
+                        totalDurationSec = calculateEffectiveDuration(clip, scriptLines),
+                        syncOffsetMs = syncOffsetMs
                     )
                     if (synthesized != null && synthesized.exists()) {
                         tempSynthesizedAudioFile = synthesized
@@ -792,7 +868,7 @@ class MediaExportManager(private val context: Context) {
                 val contentValues = ContentValues().apply {
                     put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
                     put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                    put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/DubbingStudio")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/VoiceMasterPro")
                     put(MediaStore.Video.Media.TITLE, title)
                     put(MediaStore.Video.Media.IS_PENDING, 1)
                 }
@@ -812,14 +888,14 @@ class MediaExportManager(private val context: Context) {
                     contentValues.put(MediaStore.Video.Media.IS_PENDING, 0)
                     context.contentResolver.update(uri, contentValues, null, null)
                     savedUri = uri
-                    savedPath = "Movies/DubbingStudio/$fileName"
+                    savedPath = "Movies/VoiceMasterPro/$fileName"
                 }
             }
 
             if (savedUri == null) {
                 val moviesDir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
-                    "DubbingStudio"
+                    "VoiceMasterPro"
                 )
                 if (!moviesDir.exists()) moviesDir.mkdirs()
                 val destFile = File(moviesDir, fileName)
@@ -859,32 +935,39 @@ class MediaExportManager(private val context: Context) {
      */
     private fun buildTimelineDubbedAudioTrack(
         lines: List<ScriptLine>,
-        totalDurationSec: Int
+        totalDurationSec: Int,
+        syncOffsetMs: Long = 0L
     ): File? {
         return try {
             val sampleRate = 44100
             val channels = 1
             val bytesPerSample = 2 // 16-bit PCM
             val bytesPerSec = sampleRate * channels * bytesPerSample
-            val totalBytes = totalDurationSec * bytesPerSec
+            val totalBytes = totalDurationSec.coerceAtLeast(1) * bytesPerSec
 
             val masterPcm = ByteArray(totalBytes)
+            val offsetSec = syncOffsetMs / 1000.0
 
             for (line in lines) {
                 val audioPath = line.customAudioPath ?: continue
                 val audioFile = File(audioPath)
                 if (!audioFile.exists()) continue
 
-                val startByte = (line.startSeconds * bytesPerSec).toInt().coerceIn(0, totalBytes)
-                val lineBytes = audioFile.readBytes()
+                val lineStartSec = (line.startSeconds + offsetSec).coerceAtLeast(0.0)
+                val startByte = (lineStartSec * bytesPerSec).toInt().coerceIn(0, totalBytes)
+                val pcmData = decodeAudioToPcm(audioFile) ?: continue
 
-                // Skip standard 44-byte WAV header if present
-                val pcmOffset = if (lineBytes.size > 44 && lineBytes[0] == 'R'.code.toByte() && lineBytes[1] == 'I'.code.toByte()) 44 else 0
-                val pcmLength = lineBytes.size - pcmOffset
-
-                val copyLength = minOf(pcmLength, totalBytes - startByte)
+                val copyLength = minOf(pcmData.size, totalBytes - startByte)
                 if (copyLength > 0 && startByte < totalBytes) {
-                    System.arraycopy(lineBytes, pcmOffset, masterPcm, startByte, copyLength)
+                    // Mix PCM samples with saturation clamping to prevent distortion and clicks
+                    for (i in 0 until copyLength step 2) {
+                        if (startByte + i + 1 >= totalBytes || i + 1 >= pcmData.size) break
+                        val existingSample = (masterPcm[startByte + i].toInt() and 0xFF) or (masterPcm[startByte + i + 1].toInt() shl 8)
+                        val lineSample = (pcmData[i].toInt() and 0xFF) or (pcmData[i + 1].toInt() shl 8)
+                        val mixed = (existingSample.toShort() + lineSample.toShort()).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                        masterPcm[startByte + i] = (mixed.toInt() and 0xFF).toByte()
+                        masterPcm[startByte + i + 1] = ((mixed.toInt() shr 8) and 0xFF).toByte()
+                    }
                 }
             }
 
@@ -896,6 +979,56 @@ class MediaExportManager(private val context: Context) {
             outFile
         } catch (e: Exception) {
             e.printStackTrace()
+            null
+        }
+    }
+
+    private fun calculateEffectiveDuration(clip: DubbingClip, lines: List<ScriptLine>): Int {
+        val maxLineEnd = lines.maxOfOrNull { it.endSeconds.toInt() } ?: 0
+        return maxOf(clip.durationSeconds, maxLineEnd, 5)
+    }
+
+    private fun isWavHeader(file: File): Boolean {
+        return try {
+            if (!file.exists() || file.length() < 12) return false
+            val bytes = ByteArray(12)
+            FileInputStream(file).use { it.read(bytes) }
+            bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() &&
+            bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() &&
+            bytes[8] == 'W'.code.toByte() && bytes[9] == 'A'.code.toByte() &&
+            bytes[10] == 'V'.code.toByte() && bytes[11] == 'E'.code.toByte()
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun decodeAudioToPcm(file: File): ByteArray? {
+        if (!file.exists()) return null
+        return try {
+            val bytes = file.readBytes()
+            // If RIFF WAV with 44-byte header
+            if (bytes.size > 44 && bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() &&
+                bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() &&
+                bytes[8] == 'W'.code.toByte() && bytes[9] == 'A'.code.toByte()
+            ) {
+                var pcmOffset = 44
+                for (k in 12 until minOf(bytes.size - 8, 200)) {
+                    if (bytes[k] == 'd'.code.toByte() && bytes[k + 1] == 'a'.code.toByte() &&
+                        bytes[k + 2] == 't'.code.toByte() && bytes[k + 3] == 'a'.code.toByte()
+                    ) {
+                        pcmOffset = k + 8
+                        break
+                    }
+                }
+                val pcmLength = (bytes.size - pcmOffset).coerceAtLeast(0)
+                val pcm = ByteArray(pcmLength)
+                System.arraycopy(bytes, pcmOffset, pcm, 0, pcmLength)
+                return pcm
+            }
+
+            // Fallback to reading file bytes directly if not standard WAV
+            bytes
+        } catch (_: Exception) {
             null
         }
     }
@@ -957,6 +1090,85 @@ class MediaExportManager(private val context: Context) {
         header[43] = ((pcmDataLength shr 24) and 0xff).toByte()
 
         out.write(header, 0, 44)
+    }
+
+    /**
+     * Directly copies or exports an existing processed audio file (WAV / MP3 / M4A)
+     * into the user device's public Music/VoiceMasterPro directory via MediaStore or File API.
+     */
+    suspend fun saveAudioFileToDeviceStorage(
+        sourceFile: File,
+        desiredTitle: String = "audio_dubbed_${System.currentTimeMillis() % 10000}"
+    ): ExportResult = withContext(Dispatchers.IO) {
+        if (!sourceFile.exists() || sourceFile.length() == 0L) {
+            return@withContext ExportResult.Error("الملف الصوتي المصدر غير موجود أو فارغ")
+        }
+        try {
+            val sanitized = desiredTitle.replace(Regex("[^a-zA-Z0-9_\\u0600-\\u06FF]"), "_").trim('_')
+            val isWav = sourceFile.name.endsWith(".wav", ignoreCase = true) || isWavHeader(sourceFile)
+            val extension = if (isWav) "wav" else if (sourceFile.name.endsWith(".m4a", ignoreCase = true)) "m4a" else "mp3"
+            val mimeType = if (isWav) "audio/wav" else if (extension == "m4a") "audio/mp4" else "audio/mpeg"
+            val fileName = "${sanitized}_${System.currentTimeMillis() % 10000}.$extension"
+
+            var savedUri: Uri? = null
+            var savedPath = ""
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.Audio.Media.DISPLAY_NAME, fileName)
+                    put(MediaStore.Audio.Media.MIME_TYPE, mimeType)
+                    put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/VoiceMasterPro")
+                    put(MediaStore.Audio.Media.TITLE, sanitized)
+                    put(MediaStore.Audio.Media.ARTIST, "فويس ماستر برو | VoiceMaster Pro")
+                    put(MediaStore.Audio.Media.IS_PENDING, 1)
+                }
+
+                val uri = context.contentResolver.insert(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    contentValues
+                )
+
+                if (uri != null) {
+                    context.contentResolver.openOutputStream(uri)?.use { outStream ->
+                        FileInputStream(sourceFile).use { inStream ->
+                            inStream.copyTo(outStream)
+                        }
+                    }
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Audio.Media.IS_PENDING, 0)
+                    context.contentResolver.update(uri, contentValues, null, null)
+                    savedUri = uri
+                    savedPath = "Music/VoiceMasterPro/$fileName"
+                }
+            }
+
+            if (savedUri == null) {
+                val musicDir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                    "VoiceMasterPro"
+                )
+                if (!musicDir.exists()) musicDir.mkdirs()
+                val destFile = File(musicDir, fileName)
+                sourceFile.copyTo(destFile, overwrite = true)
+                savedPath = destFile.absolutePath
+                MediaScannerConnection.scanFile(
+                    context,
+                    arrayOf(destFile.absolutePath),
+                    arrayOf(mimeType),
+                    null
+                )
+            }
+
+            ExportResult.Success(
+                uri = savedUri,
+                filePath = savedPath,
+                fileName = fileName,
+                format = ExportFormat.MP3_AUDIO
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            ExportResult.Error("فشل حفظ الملف الصوتي في وحدة التخزين: ${e.localizedMessage ?: e.message}")
+        }
     }
 }
 

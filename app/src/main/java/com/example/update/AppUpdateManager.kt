@@ -2,6 +2,9 @@ package com.example.update
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.BuildConfig
+import com.example.update.engine.OnlineUpdateProvider
+import com.example.update.firebase.FirebaseRemoteConfigUpdateManager
 import com.example.update.model.AppRelease
 import com.example.update.model.ReleaseChannel
 import com.example.update.model.UpdateCheckResult
@@ -12,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -24,9 +28,12 @@ class AppUpdateManager(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("app_updates_prefs", Context.MODE_PRIVATE)
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    // Current App Installed Version
-    val currentInstalledVersionCode: Int = 1
-    val currentInstalledVersionName: String = "1.0.0"
+    val onlineProvider = OnlineUpdateProvider(context)
+    val firebaseConfigManager = FirebaseRemoteConfigUpdateManager(context)
+
+    // Current App Installed Version from BuildConfig
+    val currentInstalledVersionCode: Int = BuildConfig.VERSION_CODE
+    val currentInstalledVersionName: String = BuildConfig.VERSION_NAME
 
     private val _releases = MutableStateFlow<List<AppRelease>>(emptyList())
     val releases: StateFlow<List<AppRelease>> = _releases.asStateFlow()
@@ -46,30 +53,56 @@ class AppUpdateManager(private val context: Context) {
     private val _serverStatusMessage = MutableStateFlow<String?>(null)
     val serverStatusMessage: StateFlow<String?> = _serverStatusMessage.asStateFlow()
 
+    private val _isOnlineSource = MutableStateFlow(false)
+    val isOnlineSource: StateFlow<Boolean> = _isOnlineSource.asStateFlow()
+
+    private val _isAutoUpdateEnabled = MutableStateFlow(prefs.getBoolean("auto_update_enabled", true))
+    val isAutoUpdateEnabled: StateFlow<Boolean> = _isAutoUpdateEnabled.asStateFlow()
+
     init {
         loadReleases()
+        startFirebaseRemoteConfigListener()
+        checkForUpdates()
+        performAsyncUpdateCheck(useOnlineSources = true)
+    }
+
+    fun setAutoUpdateEnabled(enabled: Boolean) {
+        _isAutoUpdateEnabled.value = enabled
+        prefs.edit().putBoolean("auto_update_enabled", enabled).apply()
+    }
+
+    private fun startFirebaseRemoteConfigListener() {
+        firebaseConfigManager.startRealtimeListener(scope) { result ->
+            if (result.isUpdateAvailable && result.latestRelease != null) {
+                val remoteRel = result.latestRelease
+                val currentList = _releases.value.filter { it.versionName != remoteRel.versionName }
+                val updatedList = listOf(remoteRel) + currentList
+                _releases.value = updatedList
+                _latestRelease.value = remoteRel
+                saveReleasesToPrefs(updatedList)
+                _updateCheckResult.value = result
+                _isOnlineSource.value = true
+                _serverStatusMessage.value = "تم استلام إشعار تحديث فوري عبر Firebase Remote Config 🔥"
+            }
+        }
     }
 
     private fun loadReleases() {
         val savedJson = prefs.getString("saved_releases", null)
+        val defaultReleases = getInitialDefaultReleases()
         if (savedJson.isNullOrBlank()) {
-            val defaultReleases = getInitialDefaultReleases()
             _releases.value = defaultReleases
             _latestRelease.value = defaultReleases.maxByOrNull { it.versionCode }
             saveReleasesToPrefs(defaultReleases)
         } else {
             try {
                 val list = parseReleasesFromJson(savedJson)
-                if (list.isEmpty()) {
-                    val defaultReleases = getInitialDefaultReleases()
-                    _releases.value = defaultReleases
-                    _latestRelease.value = defaultReleases.maxByOrNull { it.versionCode }
-                } else {
-                    _releases.value = list
-                    _latestRelease.value = list.maxByOrNull { it.versionCode }
-                }
+                // Always ensure latest canonical default releases are merged
+                val merged = (defaultReleases + list).distinctBy { it.versionCode }.sortedByDescending { it.versionCode }
+                _releases.value = merged
+                _latestRelease.value = merged.maxByOrNull { it.versionCode }
+                saveReleasesToPrefs(merged)
             } catch (e: Exception) {
-                val defaultReleases = getInitialDefaultReleases()
                 _releases.value = defaultReleases
                 _latestRelease.value = defaultReleases.maxByOrNull { it.versionCode }
             }
@@ -80,43 +113,60 @@ class AppUpdateManager(private val context: Context) {
         val currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         return listOf(
             AppRelease(
-                id = "rel_v1_2",
-                versionCode = 2,
-                versionName = "1.2.0",
-                releaseTitle = "إطلاق ميزة حفظ وتصدير الفيديو المدمج وموقع mody.org 🚀",
+                id = "rel_v3_1",
+                versionCode = 6,
+                versionName = "3.1.0",
+                releaseTitle = "إصدار فويس ماستر برو الذاتي الكامل وحصن الأمان الفولاذي 🚀🛡️",
                 releaseNotesArabic = """
-                    • إضافة ميزة تصدير الفيديو المدمج MP4 مع الصوت المسجل والترجمة بدقة فائقة.
-                    • توفير موقع ويب mody.org للمستخدم مع لوحة تحكم خاصة بالمطور لرفع حزم APK.
-                    • تحسين سرعة معالجة وتوليد أصوات الذكاء الاصطناعي بنسبة 40%.
-                    • ميزة المزامنة الصوتية بدقة الميلي ثانية مع موجات الصوت Dual-Track.
+                    • تطبيق خالٍ تماماً من الميكروفون ومن الكتابة اليدوية.
+                    • دبلجة ذكية تعتمد كلياً على نفسها بالذكاء الاصطناعي التوليدي بنقرة زر واحدة.
+                    • تحديثات تلقائية ذكية ومباشرة وتثبيت فوري لحزم APK دون انتظار.
+                    • حصن الحماية الفولاذية AppShield المطور وتوليد كلمات مرور قوية تلقائياً للمطور.
                 """.trimIndent(),
-                releaseNotesEnglish = "Added merged MP4 video export, mody.org web portal, APK uploader for developers.",
-                downloadUrl = "/download/rel_v1_2.apk",
-                apkSizeMb = 18.2,
+                releaseNotesEnglish = "Zero-mic, zero-typing autonomous AI dubbing with instant one-click auto-updates.",
+                downloadUrl = "https://raw.githubusercontent.com/VoiceMaster-Pro/Releases/main/voicemaster-pro-v3.1.0.apk",
+                apkSizeMb = 19.4,
                 releaseDate = currentDate,
                 isCritical = false,
-                downloadCount = 380,
+                downloadCount = 1250,
                 channel = ReleaseChannel.STABLE,
-                apkFileName = "mody-dubbing-v1.2.0.apk"
+                apkFileName = "voicemaster-pro-v3.1.0.apk"
             ),
             AppRelease(
-                id = "rel_v1_0",
-                versionCode = 1,
-                versionName = "1.0.0",
-                releaseTitle = "الإصدار الأولي لتطبيق استوديو دبلجة المقاطع العربي 🎬",
+                id = "rel_v3_0",
+                versionCode = 5,
+                versionName = "3.0.0",
+                releaseTitle = "إطلاق الدبلجة التلقائية الشاملة بدون إدخال يدوي ⚡🎬",
                 releaseNotesArabic = """
-                    • إطلاق النسخة الأولى من استوديو الدبلجة العربي.
-                    • تسجيل الصوت ومزامنته مع المشاهد الكرتونية والسينمائية.
-                    • مكتبة أصوات ومؤثرات صوتية متكاملة.
+                    • استخراج حوارات المشاهد وترجمتها وتوليد الصوت آلياً بنسبة 100%.
+                    • دعم تصدير ملفات الفيديو المدمجة بدقة عالية.
                 """.trimIndent(),
-                releaseNotesEnglish = "Initial release of Arabic Video Dubbing Studio.",
-                downloadUrl = "/download/rel_v1_0.apk",
-                apkSizeMb = 16.8,
-                releaseDate = "2026-08-01",
+                releaseNotesEnglish = "Autonomous video dubbing pipeline and automatic audio alignment.",
+                downloadUrl = "/download/rel_v3_0.apk",
+                apkSizeMb = 18.8,
+                releaseDate = currentDate,
                 isCritical = false,
-                downloadCount = 890,
+                downloadCount = 820,
                 channel = ReleaseChannel.STABLE,
-                apkFileName = "mody-dubbing-v1.0.0.apk"
+                apkFileName = "voicemaster-pro-v3.0.0.apk"
+            ),
+            AppRelease(
+                id = "rel_v2_6",
+                versionCode = 3,
+                versionName = "2.6.0",
+                releaseTitle = "تحديث فويس ماستر برو المتقدم وموقع voicemaster.org 🌐",
+                releaseNotesArabic = """
+                    • إضافة ميزة تصدير الفيديو المدمج MP4 مع الصوت المسجل والترجمة بدقة فائقة.
+                    • توفير موقع وتحديثات فويس ماستر برو الرسمية لتحميل حزم APK بسرعة وأمان.
+                """.trimIndent(),
+                releaseNotesEnglish = "Added merged MP4 video export and voicemaster.org updates center.",
+                downloadUrl = "/download/rel_v2_6.apk",
+                apkSizeMb = 18.2,
+                releaseDate = "2026-09-01",
+                isCritical = false,
+                downloadCount = 420,
+                channel = ReleaseChannel.STABLE,
+                apkFileName = "voicemaster-pro-v2.6.0.apk"
             )
         )
     }
@@ -127,22 +177,23 @@ class AppUpdateManager(private val context: Context) {
         releaseTitle: String,
         releaseNotesArabic: String,
         releaseNotesEnglish: String = "",
-        apkSizeMb: Double = 18.5,
-        downloadUrl: String = "/download/latest.apk",
-        isCritical: Boolean = false,
         channel: ReleaseChannel = ReleaseChannel.STABLE,
+        apkSizeMb: Double = 18.5,
+        downloadUrl: String = "",
+        isCritical: Boolean = false,
         apkFileName: String = ""
     ): AppRelease {
         val currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        val generatedFileName = if (apkFileName.isNotBlank()) apkFileName else "mody-dubbing-v${versionName.trim()}.apk"
+        val generatedFileName = if (apkFileName.isNotBlank()) apkFileName else "voicemaster-pro-v${versionName.trim()}.apk"
+        val effectiveDownloadUrl = if (downloadUrl.isNotBlank()) downloadUrl else "/download/rel_${versionCode}.apk"
         val newRelease = AppRelease(
             id = "rel_${UUID.randomUUID().toString().take(8)}",
             versionCode = versionCode,
             versionName = versionName.trim(),
             releaseTitle = releaseTitle.trim(),
             releaseNotesArabic = releaseNotesArabic.trim(),
-            releaseNotesEnglish = releaseNotesEnglish.trim(),
-            downloadUrl = downloadUrl,
+            releaseNotesEnglish = releaseNotesEnglish.trim().ifBlank { releaseNotesArabic.trim() },
+            downloadUrl = effectiveDownloadUrl,
             apkSizeMb = apkSizeMb,
             releaseDate = currentDate,
             isCritical = isCritical,
@@ -156,7 +207,6 @@ class AppUpdateManager(private val context: Context) {
         _latestRelease.value = updatedList.maxByOrNull { it.versionCode }
         saveReleasesToPrefs(updatedList)
 
-        // Automatically trigger update check notification
         checkForUpdates()
         return newRelease
     }
@@ -191,32 +241,136 @@ class AppUpdateManager(private val context: Context) {
         return result
     }
 
-    fun performAsyncUpdateCheck(onResult: (UpdateCheckResult) -> Unit = {}) {
+    fun performAsyncUpdateCheck(
+        useOnlineSources: Boolean = true,
+        onResult: (UpdateCheckResult) -> Unit = {}
+    ) {
         scope.launch {
             _isCheckingUpdates.value = true
-            delay(1200) // Realistic check network latency
+            _serverStatusMessage.value = "جاري الاتصال بـ Firebase Remote Config و GitHub..."
+
+            if (useOnlineSources) {
+                // 1. Check Firebase Remote Config for instant cloud updates
+                val fbResult = firebaseConfigManager.checkRemoteConfigUpdate()
+                if (fbResult.isSuccess) {
+                    val result = fbResult.getOrNull()!!
+                    if (result.isUpdateAvailable && result.latestRelease != null) {
+                        val remoteRel = result.latestRelease
+                        val currentList = _releases.value.filter { it.versionName != remoteRel.versionName }
+                        val updatedList = listOf(remoteRel) + currentList
+                        _releases.value = updatedList
+                        _latestRelease.value = remoteRel
+                        saveReleasesToPrefs(updatedList)
+                        _updateCheckResult.value = result
+                        _isOnlineSource.value = true
+                        _isCheckingUpdates.value = false
+                        _serverStatusMessage.value = "تم استلام تحديث جديد عبر Firebase Remote Config 🔥"
+                        onResult(result)
+                        return@launch
+                    }
+                }
+
+                // 2. Check GitHub Releases API
+                if (onlineProvider.githubOwner.isNotBlank() && onlineProvider.githubRepo.isNotBlank()) {
+                    val onlineResult = onlineProvider.checkGitHubRelease(
+                        currentVersionCode = currentInstalledVersionCode,
+                        currentVersionName = currentInstalledVersionName
+                    )
+
+                    if (onlineResult.isSuccess) {
+                        val result = onlineResult.getOrNull()!!
+                        _isOnlineSource.value = true
+                        val remoteRel = result.latestRelease
+                        if (remoteRel != null) {
+                            val currentList = _releases.value.filter { it.versionName != remoteRel.versionName }
+                            val updatedList = listOf(remoteRel) + currentList
+                            _releases.value = updatedList
+                            _latestRelease.value = remoteRel
+                            saveReleasesToPrefs(updatedList)
+                        }
+                        _updateCheckResult.value = result
+                        _isCheckingUpdates.value = false
+                        _serverStatusMessage.value = "تم استلام أحدث بيانات الإصدار من GitHub بنجاح 🌐"
+                        withContext(Dispatchers.Main) {
+                            onResult(result)
+                        }
+                        return@launch
+                    } else {
+                        _serverStatusMessage.value = "تعذر الاتصال بـ GitHub (${onlineResult.exceptionOrNull()?.message}) - جاري الفحص المحلي."
+                    }
+                }
+            }
+
+            delay(800)
             val result = checkForUpdates()
+            _isOnlineSource.value = false
             _isCheckingUpdates.value = false
-            onResult(result)
+            withContext(Dispatchers.Main) {
+                onResult(result)
+            }
         }
     }
 
-    fun simulateDownloadAndInstallUpdate(
+    fun downloadAndInstallUpdate(
         release: AppRelease,
-        onComplete: () -> Unit = {}
+        onComplete: (Boolean, String) -> Unit = { _, _ -> }
     ) {
         scope.launch {
             incrementDownloadCount(release.id)
-            _downloadProgress.value = 0.05f
-            for (step in 1..20) {
-                delay(120)
-                _downloadProgress.value = (step * 5f) / 100f
+            
+            // If downloadUrl is a real HTTP/HTTPS URL, download actual APK file
+            if (release.downloadUrl.startsWith("http://", ignoreCase = true) || release.downloadUrl.startsWith("https://", ignoreCase = true)) {
+                _downloadProgress.value = 0.05f
+                val downloadRes = onlineProvider.downloadApk(
+                    downloadUrl = release.downloadUrl,
+                    targetFileName = release.apkFileName.ifBlank { "voicemaster-pro-update.apk" },
+                    onProgress = { progress ->
+                        _downloadProgress.value = progress
+                    }
+                )
+
+                _downloadProgress.value = null
+                if (downloadRes.isSuccess) {
+                    val apkFile = downloadRes.getOrNull()!!
+                    val installRes = onlineProvider.installApk(apkFile)
+                    if (installRes.isSuccess) {
+                        withContext(Dispatchers.Main) {
+                            onComplete(true, "تم تنزيل التحديث وبدء التثبيت بنجاح! 🎉")
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            onComplete(false, "تم تنزيل الـ APK ولكن تعذر فتح برنامج التثبيت: ${installRes.exceptionOrNull()?.message}")
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        onComplete(false, "فشل تنزيل ملف التحديث من الإنترنت: ${downloadRes.exceptionOrNull()?.message}")
+                    }
+                }
+            } else {
+                // Local / Simulation Mode
+                _downloadProgress.value = 0.05f
+                for (step in 1..20) {
+                    delay(100)
+                    _downloadProgress.value = (step * 5f) / 100f
+                }
+                delay(200)
+                _downloadProgress.value = 1.0f
+                delay(200)
+                _downloadProgress.value = null
+                withContext(Dispatchers.Main) {
+                    onComplete(true, "اكتمل التنزيل التجريبي للإصدار v${release.versionName}")
+                }
             }
-            delay(300)
-            _downloadProgress.value = 1.0f
-            delay(300)
-            _downloadProgress.value = null
-            onComplete()
+        }
+    }
+
+    fun triggerInstantAutoUpdate(onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        val latest = _latestRelease.value ?: _releases.value.maxByOrNull { it.versionCode }
+        if (latest != null) {
+            downloadAndInstallUpdate(latest, onComplete)
+        } else {
+            onComplete(false, "لا يوجد إصدار متاح حالياً للتحديث")
         }
     }
 

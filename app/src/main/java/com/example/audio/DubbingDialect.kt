@@ -14,11 +14,11 @@ enum class DubbingDialect(
 ) {
     MODERN_STANDARD_CLASSIC(
         code = "msa_classic",
-        displayNameArabic = "الفصحى الكلاسيكية (سبيستون والزهراء)",
-        nativeRegion = "العالم العربي / مركز الزهرة",
+        displayNameArabic = "الفصحى الكلاسيكية الملحمية",
+        nativeRegion = "العالم العربي / الدبلجة الكلاسيكية",
         flagEmoji = "🌟",
         descriptionArabic = "فصحى درامية أصيلة بنبرة بطولية ومخارج حروف واضحة جداً",
-        promptInstruction = "Strict Modern Standard Arabic with dramatic Spacetoon/Venus center classic vocal cadence, heroic diction, and eloquent classical grammar (فصحى سبيستون الكلاسيكية النقية).",
+        promptInstruction = "Strict Modern Standard Arabic with dramatic classic vocal cadence, heroic diction, and eloquent classical grammar (فصحى كلاسيكية نقية).",
         samplePhrase = "سنبذل كل ما نملك من طاقة لحماية كوكب الأمل!"
     ),
     MODERN_STANDARD_CONTEMPORARY(

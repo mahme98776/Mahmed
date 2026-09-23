@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "DubStudio"
+rootProject.name = "VoiceMasterPro"
 
 include(":app")

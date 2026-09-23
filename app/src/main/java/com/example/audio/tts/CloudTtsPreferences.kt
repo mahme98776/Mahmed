@@ -18,7 +18,6 @@ class CloudTtsPreferences(private val context: Context) {
         private const val KEY_STABILITY = "tts_stability"
         private const val KEY_SIMILARITY = "tts_similarity"
         private const val KEY_IS_ENABLED = "tts_is_enabled"
-        const val DEFAULT_PERMANENT_KEY = "AQ.Ab8RN6KgYBCKjgE9alN3jLNuL5Wm1qx-U9BIu6DioS1zBQNezw"
     }
 
     fun loadConfig(): CloudTtsConfig {
@@ -30,7 +29,7 @@ class CloudTtsPreferences(private val context: Context) {
         }
 
         val aiPrefs = context.getSharedPreferences("app_ai_prefs", Context.MODE_PRIVATE)
-        val savedAiKey = aiPrefs.getString("gemini_api_key", DEFAULT_PERMANENT_KEY) ?: DEFAULT_PERMANENT_KEY
+        val savedAiKey = aiPrefs.getString("gemini_api_key", "") ?: ""
 
         val rawGoogleKey = prefs.getString(KEY_GOOGLE_CLOUD_KEY, "") ?: ""
         val effectiveGoogleKey = if (rawGoogleKey.isNotBlank()) rawGoogleKey else savedAiKey

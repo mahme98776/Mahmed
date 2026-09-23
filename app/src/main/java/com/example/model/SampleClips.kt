@@ -19,7 +19,7 @@ object SampleClipsRepository {
         DubbingClip(
             id = "anime_full_episode",
             title = "حلقة أنمي كاملة (٢٢ دقيقة): معركة كوكب الأمل",
-            description = "حلقة أنمي ياباني كاملة مدبلجة على طريقة سبيستون ومركز الزهرة مع حوارات متعددة وفصول قتالية متتالية.",
+            description = "حلقة أنمي ياباني كاملة مدبلجة باللغة العربية الفصحى مع حوارات متعددة وفصول قتالية متتالية.",
             category = "أنمي ياباني كامل",
             durationSeconds = 1320, // 22 minutes
             coverEmoji = "⚔️🎬",
@@ -33,7 +33,7 @@ object SampleClipsRepository {
                     textOriginal = "Friends, the decisive moment has arrived.. we will not allow darkness to take our future!",
                     startSeconds = 1.0f,
                     endSeconds = 7.0f,
-                    voiceType = "SPACETOON_HERO"
+                    voiceType = "HERO_MALE"
                 ),
                 ScriptLine(
                     id = "ep_2",
@@ -53,17 +53,17 @@ object SampleClipsRepository {
                     textOriginal = "Unite heroes! The shield of hope glows with pure friendship energy!",
                     startSeconds = 15.0f,
                     endSeconds = 21.0f,
-                    voiceType = "SPACETOON_HEROINE"
+                    voiceType = "HEROINE_FEMALE"
                 ),
                 ScriptLine(
                     id = "ep_4",
-                    characterName = "راوي سبيستون الأسطوري",
+                    characterName = "الراوي الملحمي",
                     characterAvatar = "🌟",
                     textArabic = "وهكذا تشتعل المعركة الكبرى.. هل سينجح أبطالنا في إنقاذ الكوكب؟ تابعوا معنا!",
                     textOriginal = "And so the grand battle blazes.. will our heroes save the planet? Stay tuned!",
                     startSeconds = 22.0f,
                     endSeconds = 28.0f,
-                    voiceType = "SPACETOON_NARRATOR"
+                    voiceType = "EPIC_NARRATOR"
                 )
             )
         ),
@@ -94,7 +94,7 @@ object SampleClipsRepository {
                     textOriginal = "I lived for so long searching for the truth, and I will never back down whatever the cost!",
                     startSeconds = 8.5f,
                     endSeconds = 15.0f,
-                    voiceType = "SPACETOON_HEROINE"
+                    voiceType = "HEROINE_FEMALE"
                 ),
                 ScriptLine(
                     id = "kfilm_3",
@@ -105,57 +105,6 @@ object SampleClipsRepository {
                     startSeconds = 16.0f,
                     endSeconds = 23.5f,
                     voiceType = "ARABIC_MALE"
-                )
-            )
-        ),
-        DubbingClip(
-            id = "anime_spacetoon_hero",
-            title = "أنمي الأبطال: عزم شباب المستقبل (سبيستون)",
-            description = "مواجهة أنمي ياباني أسطورية على طريقة مركز الزهرة وسبيستون: طاقة الإرادة وهزيمة قوى الظلام.",
-            category = "أنمي ياباني",
-            durationSeconds = 27,
-            coverEmoji = "⚔️🌟",
-            primaryColor = 0xFF8B5CF6,
-            scriptLines = listOf(
-                ScriptLine(
-                    id = "spacetoon_1",
-                    characterName = "بطل الأنمي (حسام)",
-                    characterAvatar = "🦸",
-                    textArabic = "لن أسمح لكم بنشر الظلام في كوكبنا.. طاقة الرياح الصاعقة، انطلقي!",
-                    textOriginal = "I will not let darkness take over our world.. Thunder wind energy, unleash!",
-                    startSeconds = 1.0f,
-                    endSeconds = 7.0f,
-                    voiceType = "SPACETOON_HERO"
-                ),
-                ScriptLine(
-                    id = "spacetoon_2",
-                    characterName = "المنافس الغامض (كاي)",
-                    characterAvatar = "🦹",
-                    textArabic = "هاهاها! مهما حاولت يا حسام، قوتك وحدك لن تكفي للتصدي لدرع الظلال!",
-                    textOriginal = "Hahaha! No matter how hard you try Hussam, your power alone is not enough!",
-                    startSeconds = 8.0f,
-                    endSeconds = 14.5f,
-                    voiceType = "DRAMATIC"
-                ),
-                ScriptLine(
-                    id = "spacetoon_3",
-                    characterName = "البطلة (سلمى)",
-                    characterAvatar = "🌸",
-                    textArabic = "أنت لست وحدك يا حسام! قلوبنا وعزيمتنا تتحد معاً لتحقيق النصر!",
-                    textOriginal = "You are not alone Hussam! Our hearts and will unite for victory!",
-                    startSeconds = 15.5f,
-                    endSeconds = 21.0f,
-                    voiceType = "SPACETOON_HEROINE"
-                ),
-                ScriptLine(
-                    id = "spacetoon_4",
-                    characterName = "راوي سبيستون الأسطوري",
-                    characterAvatar = "🌟",
-                    textArabic = "وهكذا يثبت الأبطال أن الصداقة والإرادة الصادقة تصنع المعجزات دائماً!",
-                    textOriginal = "And so our heroes prove that true friendship and will always create miracles!",
-                    startSeconds = 22.0f,
-                    endSeconds = 26.5f,
-                    voiceType = "SPACETOON_NARRATOR"
                 )
             )
         ),
@@ -186,7 +135,7 @@ object SampleClipsRepository {
                     textOriginal = "I tried so hard to forget all the promises we made in the rain, but my heart failed!",
                     startSeconds = 8.5f,
                     endSeconds = 16.5f,
-                    voiceType = "SPACETOON_HEROINE"
+                    voiceType = "HEROINE_FEMALE"
                 ),
                 ScriptLine(
                     id = "kdrama_3",
@@ -412,47 +361,6 @@ object SampleClipsRepository {
                     startSeconds = 17.0f,
                     endSeconds = 25.0f,
                     voiceType = "ENTHUSIASTIC"
-                )
-            )
-        ),
-        DubbingClip(
-            id = "spacetoon_full_episode",
-            title = "حلقة أنمي كاملة (٢٢ دقيقة) - معركة حماة الكوكب",
-            description = "حلقة أنمي سبيستون ومركز الزهرة ملحمية كاملة (1320 ثانية) مع حوارات متعددة الشخصيات وتقسيم تلقائي.",
-            category = "أنمي وسبيستون",
-            durationSeconds = 1320,
-            coverEmoji = "⚡⚔️",
-            primaryColor = 0xFF8B5CF6,
-            scriptLines = listOf(
-                ScriptLine(
-                    id = "ep_1",
-                    characterName = "راوي سبيستون",
-                    characterAvatar = "🎙️",
-                    textArabic = "في أعماق الفضاء السحيق، يواصل أبطالنا رحلتهم الأسطورية نحو كوكب الأمل المنشود.",
-                    textOriginal = "In the deep void of outer space, our brave heroes continue their legendary journey.",
-                    startSeconds = 2.0f,
-                    endSeconds = 8.0f,
-                    voiceType = "SPACETOON_NARRATOR"
-                ),
-                ScriptLine(
-                    id = "ep_2",
-                    characterName = "البطل وسيم",
-                    characterAvatar = "⚔️",
-                    textArabic = "لن نستسلم أبداً ما دامت قلوبنا تنبض بالحق والشجاعة والإصرار!",
-                    textOriginal = "We will never surrender as long as our hearts beat with justice and courage!",
-                    startSeconds = 9.0f,
-                    endSeconds = 15.0f,
-                    voiceType = "SPACETOON_HERO"
-                ),
-                ScriptLine(
-                    id = "ep_3",
-                    characterName = "البطلة ريم",
-                    characterAvatar = "🛡️",
-                    textArabic = "استعدوا جميعاً! إن إشارات دروع الطاقة تعود إلى العمل بكامل كفاءتها!",
-                    textOriginal = "Get ready everyone! Energy shield sensors are returning to full power!",
-                    startSeconds = 16.0f,
-                    endSeconds = 22.0f,
-                    voiceType = "SPACETOON_HEROINE"
                 )
             )
         ),

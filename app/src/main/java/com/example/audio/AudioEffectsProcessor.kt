@@ -536,7 +536,7 @@ class AudioEffectsProcessor(private val context: Context) {
     /**
      * Encodes Float PCM samples to standard AAC MP4 (.m4a)
      */
-    private fun encodePcmToM4a(
+    fun encodePcmToM4a(
         samples: FloatArray,
         sampleRate: Int,
         channels: Int,

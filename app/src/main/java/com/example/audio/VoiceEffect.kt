@@ -116,9 +116,9 @@ enum class BgmStyle(
         titleArabic = "إيقاع ناعم",
         iconEmoji = "🎧"
     ),
-    SPACETOON(
-        id = "SPACETOON",
-        titleArabic = "ألحان سبيستون الأسطورية",
-        iconEmoji = "🌟"
+    ORCHESTRAL(
+        id = "ORCHESTRAL",
+        titleArabic = "أوركسترا حماسية",
+        iconEmoji = "🎺"
     )
 }

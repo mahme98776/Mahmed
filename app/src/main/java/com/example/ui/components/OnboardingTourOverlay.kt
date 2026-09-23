@@ -37,7 +37,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Subtitles
@@ -103,30 +103,30 @@ object OnboardingTourManager {
 
     val defaultSteps = listOf(
         OnboardingStep(
-            id = "record_mic",
-            titleArabic = "🎙️ زر التسجيل والميكروفون الذكي",
-            descriptionArabic = "اضغط على هذا الزر لبدء تسجيل صوتك للدبلجة فوراً. سيبدأ عد تنازلي ذكي (3، 2، 1) مع تشغيل المشهد متزامناً مع صوتك!",
-            proTipArabic = "نصيحة: يمكنك النقر على شارة 'الدبلجة الفورية' لتحويل نبرة صوتك آلياً أثناء التسجيل.",
-            icon = Icons.Default.Mic,
+            id = "play_pause_scene",
+            titleArabic = "▶️ زر تشغيل المشهد ومزامنة الدبلجة",
+            descriptionArabic = "اضغط على هذا الزر لتشغيل المشهد وتجربة مزامنة الصوت المدبلج بدقة واحترافية متناهية!",
+            proTipArabic = "نصيحة: يمكنك استيراد صوت جاهز أو توليد صوت جديد بالذكاء الاصطناعي بنقرة واحدة.",
+            icon = Icons.Default.PlayArrow,
             iconTint = Color(0xFFD0BCFF),
-            highlightTargetTag = "record_dub_button",
+            highlightTargetTag = "play_pause_dub_button",
             targetAreaDescription = "الزر الدائري الرئيسي في منتصف لوحة التحكم السفلية",
             positionAlignment = Alignment.TopCenter
         ),
         OnboardingStep(
             id = "trim_audio",
-            titleArabic = "✂️ أداة قص وتحرير الصوت المسجل",
-            descriptionArabic = "بعد التسجيل، يظهر زر 'قص ✂️' أسفل لوحة التحكم. يمكنك من خلاله قص البدايات الصامتة، حذف الأخطاء، وضبط توقيت الدبلجة بدقة الملي ثانية!",
-            proTipArabic = "نصيحة: ميزة 'الحذف الذكي للصمت' تقوم بتنقية التسجيل آلياً بضغطة زر واحدة.",
+            titleArabic = "✂️ أداة قص وضبط مسار الصوت",
+            descriptionArabic = "يمكنك من خلال هذه الأداة قص البدايات الصامتة، حذف الأجزاء غير المرغوبة، وضبط توقيت الدبلجة بدقة الملي ثانية!",
+            proTipArabic = "نصيحة: ميزة 'الحذف الذكي للصمت' تقوم بتنقية الصوت آلياً بضغطة زر واحدة.",
             icon = Icons.Default.ContentCut,
             iconTint = Color(0xFF90CAF9),
             highlightTargetTag = "quick_trim_audio_btn",
-            targetAreaDescription = "زر القص الأزرق أسفل موجات الصوت",
+            targetAreaDescription = "زر القص أسفل موجات الصوت",
             positionAlignment = Alignment.TopCenter
         ),
         OnboardingStep(
             id = "voice_effects",
-            titleArabic = "🎛️ مغير الأصوات ومؤثرات سبيستون",
+            titleArabic = "🎛️ مغير الأصوات والمؤثرات الصوتية",
             descriptionArabic = "اختر من بين أكثر من 16 نمطاً صوتياً ومؤثراً احترافياً (أبطال أنمي، روبوت، وثائقي، صدى هائل، إذاعة قديمة والمزيد).",
             proTipArabic = "نصيحة: يمكنك تجربة كل نبرة صوت بسماع عينة صوتية حية قبل تطبيقها على مشروعك.",
             icon = Icons.Default.GraphicEq,

@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDeveloper() {
+      return isAuthenticated() && 
+        request.auth.token.email != null && 
+        request.auth.token.email.lower() == "mahme98776@gmail.com";
+    }
+
+    // Users collection: Users can ONLY read or write data belonging to their specific UID
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // All subcollections (projects, audio_tracks, scripts, profile_data) under a user's UID
+      match /{subcollection=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Developer-level configuration data: Strictly DENIED for all non-developer authenticated users
+    match /developer_config/{docId} {
+      allow read, write: if isDeveloper();
+    }
+
+    match /admin/{docId} {
+      allow read, write: if isDeveloper();
+    }
+
+    match /system_settings/{docId} {
+      allow read, write: if isDeveloper();
+    }
+
+    // Default: Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

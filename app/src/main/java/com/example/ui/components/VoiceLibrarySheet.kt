@@ -248,6 +248,9 @@ fun VoiceLibrarySheet(
                                             auditionVoiceId = null
                                             viewModel.ttsManager.stop()
                                         } else {
+                                            if (!viewModel.ttsManager.isEngineReady()) {
+                                                return@IconButton
+                                            }
                                             auditionVoiceId = voice.id
                                             viewModel.ttsManager.speakText(
                                                 text = voice.sampleArabicPhrase,
