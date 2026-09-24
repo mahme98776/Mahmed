@@ -298,6 +298,36 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     val geminiAudioDenoiseEnhancer = com.example.audio.gemini.GeminiAudioDenoiseEnhancer(application)
     val sttManager = SpeechToTextManager(application)
     val geminiUnifiedClient = GeminiUnifiedClient(application)
+    val media3ProcessingLayer = com.example.audio.media3.Media3AudioProcessingLayer(application)
+
+    fun updateRecordedAudioPath(path: String) {
+        _uiState.value = _uiState.value.copy(recordedAudioPath = path)
+    }
+
+    fun showToast(msg: String) {
+        _uiState.value = _uiState.value.copy(toastMessage = msg)
+    }
+
+    fun applyMedia3AudioEnhancement(onComplete: (Boolean) -> Unit = {}) {
+        val currentPath = _uiState.value.recordedAudioPath ?: return
+        val file = File(currentPath)
+        if (!file.exists()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(toastMessage = "جارٍ عزل الضوضاء وموازنة درجات الصوت عبر Media3... 🎚️✨")
+            val result = media3ProcessingLayer.processVoiceClip(file)
+            if (result.success) {
+                updateRecordedAudioPath(result.processedFile.absolutePath)
+                _uiState.value = _uiState.value.copy(
+                    toastMessage = "تمت تنقية وموازنة الصوت بالذكاء الاصطناعي عبر Media3 بنجاح! 🎚️✨"
+                )
+                onComplete(true)
+            } else {
+                _uiState.value = _uiState.value.copy(toastMessage = result.messageArabic)
+                onComplete(false)
+            }
+        }
+    }
     val youTubeAutoDubberEngine = com.example.audio.youtube.YouTubeAutoDubberEngine(application, ttsManager, geminiUnifiedClient)
     val vattDubbingEngine = com.example.audio.vatt.VattDubbingEngine(application, ttsManager, cloudTtsService, exportManager)
     val vattState: StateFlow<com.example.audio.vatt.VattDubbingEngine.VattState> = vattDubbingEngine.vattState
@@ -1628,7 +1658,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
             toastMessage = recognitionMsg
         )
 
-        // Automatically persist the recording into Room Database so it survives app restarts
+        // Automatically persist the recording and apply Media3 AI noise suppression + gain normalization
         if (finalPath != null && File(finalPath).exists()) {
             val audioFile = File(finalPath)
             val durationSec = if (_uiState.value.currentPlaybackSeconds > 0.5f) {
@@ -1649,6 +1679,17 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                     timestamp = System.currentTimeMillis()
                 )
                 repository.saveVoiceRecording(newRecording)
+
+                // Automatic Media3 AI Audio Processing Layer for background noise suppression and gain normalization
+                try {
+                    val media3Result = media3ProcessingLayer.processVoiceClip(audioFile)
+                    if (media3Result.success) {
+                        _uiState.value = _uiState.value.copy(
+                            recordedAudioPath = media3Result.processedFile.absolutePath,
+                            toastMessage = "تم التسجيل وتطبيق تنقية Media3 وموازنة درجات الصوت آلياً! 🎚️✨"
+                        )
+                    }
+                } catch (_: Exception) {}
             }
         }
     }

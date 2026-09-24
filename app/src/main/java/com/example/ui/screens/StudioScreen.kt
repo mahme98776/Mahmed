@@ -1153,8 +1153,36 @@ fun StudioScreen(
                                         }
                                     }
 
-                                    // Action Buttons: Auto-Balance & Trimmer
+                                    // Action Buttons: Auto-Balance & Trimmer & Media3
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFF00E5FF).copy(alpha = 0.2f),
+                                            border = BorderStroke(1.dp, Color(0xFF00E5FF)),
+                                            modifier = Modifier
+                                                .clickable { viewModel.applyMedia3AudioEnhancement() }
+                                                .testTag("take_media3_ai_enhance_btn")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.GraphicEq,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF00E5FF),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    text = "تنقية Media3 🎚️",
+                                                    color = Color(0xFF00E5FF),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
                                         Surface(
                                             shape = RoundedCornerShape(10.dp),
                                             color = Color(0xFF381E72),

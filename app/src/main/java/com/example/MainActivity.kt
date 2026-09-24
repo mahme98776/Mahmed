@@ -101,6 +101,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.localization.AppLanguage
 import com.example.localization.AppStrings
 import com.example.ui.DubbingViewModel
+import com.example.ui.components.AlexaVoiceAssistantModal
 import com.example.ui.components.PersistentAiChatOverlay
 import com.example.ui.screens.AladLiveDubbingScreen
 import com.example.ui.screens.AiDubbingScreen
@@ -219,6 +220,7 @@ fun MainScreen(
 
     var selectedTab by remember { mutableStateOf(AppTab.VIDEO_DUB) }
     var showMoreToolsSheet by remember { mutableStateOf(false) }
+    var showAlexaVoiceAssistant by remember { mutableStateOf(false) }
 
     val userProfile by viewModel.authService.userProfile.collectAsStateWithLifecycle()
     var hasPassedGate by remember { mutableStateOf(userProfile.isSignedIn) }
@@ -258,6 +260,27 @@ fun MainScreen(
             .background(MaterialTheme.colorScheme.background),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets.safeDrawing,
+        floatingActionButton = {
+            androidx.compose.material3.FloatingActionButton(
+                onClick = {
+                    showAlexaVoiceAssistant = true
+                    viewModel.ttsManager.speakText("أنا أستمع إليك الآن، تفضل بالأمر الصوتي.", utteranceId = "alexa_wake_prompt")
+                },
+                shape = CircleShape,
+                containerColor = Color(0xFF00E5FF),
+                contentColor = Color(0xFF0D47A1),
+                elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
+                modifier = Modifier
+                    .padding(bottom = 54.dp)
+                    .testTag("floating_alexa_assistant_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = "المساعد الصوتي الذكي أليكسا وجيمناي",
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
         bottomBar = {
             Column(
                 modifier = Modifier
@@ -720,6 +743,15 @@ fun MainScreen(
                     }
                 )
             }
+
+            // Alexa & Gemini Smart Voice Assistant Modal with Media3 Audio Processing
+            AlexaVoiceAssistantModal(
+                isVisible = showAlexaVoiceAssistant,
+                onDismiss = { showAlexaVoiceAssistant = false },
+                viewModel = viewModel,
+                onNavigateToTab = { targetTab -> selectedTab = targetTab },
+                media3ProcessingLayer = viewModel.media3ProcessingLayer
+            )
         }
     }
 }
