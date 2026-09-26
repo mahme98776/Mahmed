@@ -130,6 +130,7 @@ import com.example.model.ScriptLine
 import com.example.R
 import com.example.ui.components.AccessibleImageCard
 import com.example.ui.components.AccessibleBlindDubbingPanel
+import com.example.ui.components.AudioEqualizerSheet
 
 @Composable
 fun StudioScreen(
@@ -877,6 +878,38 @@ fun StudioScreen(
                                                 color = Color(0xFFD0BCFF),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+
+                                    // Professional Equalizer (EQ) Button
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF1E293B),
+                                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { viewModel.openEqualizerSheet() }
+                                            .testTag("quick_equalizer_btn")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.GraphicEq,
+                                                contentDescription = "المعادل الصوتي",
+                                                tint = Color(0xFF00E5FF),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = "معادل EQ 🎚️",
+                                                color = Color(0xFF00E5FF),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
                                             )
                                         }
                                     }
@@ -1773,6 +1806,15 @@ fun StudioScreen(
                 },
                 onResetDefaults = { viewModel.resetVolumesToDefault() },
                 onDismiss = { viewModel.closeVolumeNormalizationSheet() }
+            )
+        }
+
+        // 7-Band Professional Audio Equalizer Bottom Sheet
+        if (state.showEqualizerSheet) {
+            AudioEqualizerSheet(
+                isVisible = state.showEqualizerSheet,
+                onDismiss = { viewModel.closeEqualizerSheet() },
+                viewModel = viewModel
             )
         }
 

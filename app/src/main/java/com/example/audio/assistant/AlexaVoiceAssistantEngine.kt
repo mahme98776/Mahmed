@@ -56,6 +56,7 @@ enum class AlexaVoiceIntent(val titleArabic: String, val iconEmoji: String) {
     ONE_CLICK_AUTO_DUB("دبلجة المشهد بضغطة زر واحدة 🚀", "🚀"),
     GENERATE_SOCIAL_METADATA("توليد عنوان تسويقي وهاشتاجات للنشر 📱✨", "✨"),
     AUTO_TRIM_SILENCE("قص الصوت وحذف الصمت ✂️", "✂️"),
+    OPEN_EQUALIZER("فتح المعادل الصوتي 🎚️", "🎚️"),
     NAVIGATE_TAB("الانتقال إلى قسم بالتطبيق 🚀", "🚀"),
     OPEN_EXTERNAL_APP("فتح تطبيق بالنظام 📱", "📱"),
     UNDO_ACTION("التراجع عن آخر تعديل ↩️", "↩️"),
@@ -415,6 +416,9 @@ class AlexaVoiceAssistantEngine(
                 }
                 AlexaVoiceIntent.AUTO_TRIM_SILENCE -> {
                     viewModel.openAudioTrimmerForCurrentTake()
+                }
+                AlexaVoiceIntent.OPEN_EQUALIZER -> {
+                    viewModel.openEqualizerSheet()
                 }
                 AlexaVoiceIntent.NAVIGATE_TAB -> {
                     if (command.navigationTargetId != null) {
@@ -787,6 +791,13 @@ class AlexaVoiceAssistantEngine(
                 wasAutoCorrected = true
             )
         }
+        if (containsAny(processedText, listOf("المعادل الصوتي", "اكولايزر", "اكوليزر", "اي كولايزر", "equalizer", "eq", "ترددات الصوت", "معادل الصوت"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.OPEN_EQUALIZER,
+                responseArabic = "جارٍ فتح المعادل الصوتي الاحترافي للتحكم في الترددات 🎚️",
+                wasAutoCorrected = true
+            )
+        }
 
         // 12. Conversational / Advice
         return IntentResolutionResult(
@@ -862,6 +873,7 @@ class AlexaVoiceAssistantEngine(
             AlexaVoiceIntent.QUALITY_AUDIT_SCRIPT -> "تدقيق جودة الصوت والتشكيل آلياً"
             AlexaVoiceIntent.ONE_CLICK_AUTO_DUB -> "دبلجة المشهد بضغطة زر واحدة"
             AlexaVoiceIntent.GENERATE_SOCIAL_METADATA -> "توليد عنوان تسويقي وهاشتاجات للنشر"
+            AlexaVoiceIntent.OPEN_EQUALIZER -> "فتح المعادل الصوتي"
             AlexaVoiceIntent.UNDO_ACTION -> "التراجع عن التعديل"
             AlexaVoiceIntent.REDO_ACTION -> "إعادة تطبيق التعديل"
             AlexaVoiceIntent.DEVELOPER_COPYRIGHT_QUERY -> "الاستعلام عن مطور التطبيق وحقوق الملكية"

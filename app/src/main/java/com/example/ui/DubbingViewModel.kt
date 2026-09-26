@@ -243,7 +243,35 @@ data class StudioUiState(
     val denoiseProgress: Float = 0f,
     val denoiseStatusText: String = "",
     val lastDenoiseResult: com.example.audio.gemini.GeminiAudioEnhanceResult? = null,
-    val showDenoiseDialog: Boolean = false
+    val showDenoiseDialog: Boolean = false,
+
+    // Professional Video Audio Equalizer State
+    val showEqualizerSheet: Boolean = false,
+    val equalizerState: EqualizerState = EqualizerState()
+)
+
+data class EqualizerBand(
+    val id: Int,
+    val frequencyLabel: String,
+    val gainDb: Float = 0f // -12f to +12f
+)
+
+data class EqualizerState(
+    val isEnabled: Boolean = true,
+    val selectedPresetName: String = "Flat",
+    val bands: List<EqualizerBand> = listOf(
+        EqualizerBand(0, "60Hz", 0f),
+        EqualizerBand(1, "170Hz", 0f),
+        EqualizerBand(2, "310Hz", 0f),
+        EqualizerBand(3, "600Hz", 0f),
+        EqualizerBand(4, "1kHz", 0f),
+        EqualizerBand(5, "3kHz", 0f),
+        EqualizerBand(6, "12kHz", 0f)
+    ),
+    val bassBoostFraction: Float = 0.25f,
+    val spatialVirtualizerFraction: Float = 0.2f,
+    val masterGainDb: Float = 0f,
+    val isBypassed: Boolean = false
 )
 
 data class VideoSpeechToTextUiState(
@@ -3214,6 +3242,91 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                 toastMessage = "تم توليد ${generatedLines.size} حوارات عربية متزامنة بالذكاء الاصطناعي بنجاح! 🎬✨"
             )
         }
+    }
+
+    // ==========================================
+    // Professional 7-Band Equalizer Management
+    // ==========================================
+
+    fun openEqualizerSheet() {
+        _uiState.value = _uiState.value.copy(showEqualizerSheet = true)
+    }
+
+    fun closeEqualizerSheet() {
+        _uiState.value = _uiState.value.copy(showEqualizerSheet = false)
+    }
+
+    fun updateEqualizerBandGain(bandId: Int, newGainDb: Float) {
+        val currentBands = _uiState.value.equalizerState.bands.map {
+            if (it.id == bandId) it.copy(gainDb = newGainDb.coerceIn(-12f, 12f)) else it
+        }
+        _uiState.value = _uiState.value.copy(
+            equalizerState = _uiState.value.equalizerState.copy(
+                bands = currentBands,
+                selectedPresetName = "مخصص"
+            )
+        )
+    }
+
+    fun applyEqualizerPreset(presetName: String, gains: List<Float>) {
+        val updatedBands = _uiState.value.equalizerState.bands.mapIndexed { index, band ->
+            val gain = gains.getOrElse(index) { 0f }
+            band.copy(gainDb = gain.coerceIn(-12f, 12f))
+        }
+        _uiState.value = _uiState.value.copy(
+            equalizerState = _uiState.value.equalizerState.copy(
+                bands = updatedBands,
+                selectedPresetName = presetName
+            ),
+            toastMessage = "تم تطبيق إعداد المعادل الصوتي: $presetName 🎚️"
+        )
+    }
+
+    fun setEqualizerBassBoost(fraction: Float) {
+        _uiState.value = _uiState.value.copy(
+            equalizerState = _uiState.value.equalizerState.copy(
+                bassBoostFraction = fraction.coerceIn(0f, 1f)
+            )
+        )
+    }
+
+    fun setEqualizerSpatialVirtualizer(fraction: Float) {
+        _uiState.value = _uiState.value.copy(
+            equalizerState = _uiState.value.equalizerState.copy(
+                spatialVirtualizerFraction = fraction.coerceIn(0f, 1f)
+            )
+        )
+    }
+
+    fun setEqualizerMasterGain(gainDb: Float) {
+        _uiState.value = _uiState.value.copy(
+            equalizerState = _uiState.value.equalizerState.copy(
+                masterGainDb = gainDb.coerceIn(-6f, 6f)
+            )
+        )
+    }
+
+    fun toggleEqualizerBypass() {
+        val newBypass = !_uiState.value.equalizerState.isBypassed
+        _uiState.value = _uiState.value.copy(
+            equalizerState = _uiState.value.equalizerState.copy(isBypassed = newBypass),
+            toastMessage = if (newBypass) "تم تجاوز المعادل (صوت خام الأصلي) 🔈" else "تم تفعيل المعادل الصوتي 🎚️"
+        )
+    }
+
+    fun resetEqualizerToFlat() {
+        val flatBands = _uiState.value.equalizerState.bands.map { it.copy(gainDb = 0f) }
+        _uiState.value = _uiState.value.copy(
+            equalizerState = _uiState.value.equalizerState.copy(
+                bands = flatBands,
+                selectedPresetName = "Flat (متوازن)",
+                bassBoostFraction = 0f,
+                spatialVirtualizerFraction = 0f,
+                masterGainDb = 0f,
+                isBypassed = false
+            ),
+            toastMessage = "تمت إعادة ضبط المعادل الصوتي للوضع الافتراضي (Flat) 🔄"
+        )
     }
 
     // ==========================================
