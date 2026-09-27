@@ -181,8 +181,24 @@ enum class AppTab(
 class MainActivity : FragmentActivity() {
     private val dubbingViewModel: DubbingViewModel by viewModels()
 
+    companion object {
+        const val EXTRA_AUTO_OPEN_ALEXA = "com.example.action.AUTO_OPEN_ALEXA"
+        val globalAlexaTriggerFlow = kotlinx.coroutines.flow.MutableStateFlow(false)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_AUTO_OPEN_ALEXA, false)) {
+            globalAlexaTriggerFlow.value = true
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.getBooleanExtra(EXTRA_AUTO_OPEN_ALEXA, false) == true) {
+            globalAlexaTriggerFlow.value = true
+        }
         enableEdgeToEdge()
         setContent {
             val isDarkMode by dubbingViewModel.isDarkMode.collectAsStateWithLifecycle()
@@ -221,6 +237,14 @@ fun MainScreen(
     var selectedTab by remember { mutableStateOf(AppTab.VIDEO_DUB) }
     var showMoreToolsSheet by remember { mutableStateOf(false) }
     var showAlexaVoiceAssistant by remember { mutableStateOf(false) }
+
+    val globalWakeTrigger by MainActivity.globalAlexaTriggerFlow.collectAsStateWithLifecycle()
+    LaunchedEffect(globalWakeTrigger) {
+        if (globalWakeTrigger) {
+            showAlexaVoiceAssistant = true
+            MainActivity.globalAlexaTriggerFlow.value = false
+        }
+    }
 
     val userProfile by viewModel.authService.userProfile.collectAsStateWithLifecycle()
     var hasPassedGate by remember { mutableStateOf(userProfile.isSignedIn) }

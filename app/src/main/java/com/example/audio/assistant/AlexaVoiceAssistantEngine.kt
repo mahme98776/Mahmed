@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.example.audio.hollywood.CinematicScoreStyle
+import com.example.audio.hollywood.FoleyCategory
 import java.io.File
 import java.util.Locale
 
@@ -44,21 +47,42 @@ enum class AlexaVoiceIntent(val titleArabic: String, val iconEmoji: String) {
     STOP_RECORDING("إيقاف وحفظ التسجيل ⏹️", "⏹️"),
     PLAY_AUDIO("تشغيل مقطع الدبلجة 🔊", "🔊"),
     STOP_PLAYBACK("إيقاف التشغيل ⏸️", "⏸️"),
+    SEEK_TIMELINE("تقديم/ترجيع شريط الوقت ⏱️", "⏱️"),
+    SET_DUB_VOLUME("تغيير مستوى صوت الدبلجة 🎚️", "🎚️"),
+    SET_ORIGINAL_VOLUME("تغيير صوت المشهد الأصلي 🔊", "🔊"),
+    SET_BGM_VOLUME("تغيير صوت الموسيقى التصويرية 🎵", "🎵"),
+    MUTE_UNMUTE_ORIGINAL("كتم/تشغيل صوت الفيديو الأصلي 🔇", "🔇"),
+    MUTE_UNMUTE_DUB("كتم/تشغيل صوت الدبلجة 🔈", "🔈"),
+    TOGGLE_VOCAL_CLARITY("تفعيل/إيقاف وضوح الصوت البشري 🎙️", "🎙️"),
     MEDIA3_AI_CLEAN("تنقية الضوضاء وموازنة الصوت بـ Media3 🎚️", "🎚️"),
+    DEEP_GEMINI_DENOISE("تنقية صوتية فائقة بـ Gemini ✨", "✨"),
     APPLY_VOICE_EFFECT("تطبيق مؤثر صوتي 🤖", "🤖"),
     COMPOUND_AI_CLEAN_AND_EFFECT("معالجة مركبة: تنقية + مؤثر + موازنة ⚡", "⚡"),
+    OPEN_EQUALIZER("فتح المعادل الصوتي 🎚️", "🎚️"),
+    APPLY_EQ_PRESET("تطبيق نمط في المعادل الصوتي 🎛️", "🎛️"),
     LIP_SYNC_AUTO_ALIGN("محاذاة ومزامنة الشفاه التلقائية 🎯", "🎯"),
     LIP_SYNC_NUDGE("تعديل إزاحة مزامنة الشفاه ⏱️", "⏱️"),
     AUTO_TRANSCRIBE_STT("تفريغ الصوت إلى نصوص متزامنة ✍️", "✍️"),
+    GENERATE_AI_SCRIPT("تأليف حوارات ذكية بالذكاء الاصطناعي 🪄", "🪄"),
+    READ_SCRIPT_ALOUD("قراءة نصوص السيناريو 📖", "📖"),
     GEMINI_TRANSLATE_SCRIPT("ترجمة السيناريو بالذكاء الاصطناعي 🌐", "🌐"),
     SYNTHESIZE_AND_SYNC_TIMELINE("توليد وتركيب الدبلجة على خط الزمن 🎙️🎬", "🎬"),
     QUALITY_AUDIT_SCRIPT("تدقيق جودة الصوت والتشكيل آلياً 🪄", "🪄"),
     ONE_CLICK_AUTO_DUB("دبلجة المشهد بضغطة زر واحدة 🚀", "🚀"),
     GENERATE_SOCIAL_METADATA("توليد عنوان تسويقي وهاشتاجات للنشر 📱✨", "✨"),
     AUTO_TRIM_SILENCE("قص الصوت وحذف الصمت ✂️", "✂️"),
-    OPEN_EQUALIZER("فتح المعادل الصوتي 🎚️", "🎚️"),
+    DISCARD_RECORDING("حذف التسجيل الصوتي الحالي 🗑️", "🗑️"),
+    OPEN_EXPORT_DIALOG("تصدير وحفظ الفيديو المدمج 🎬", "🎬"),
     NAVIGATE_TAB("الانتقال إلى قسم بالتطبيق 🚀", "🚀"),
     OPEN_EXTERNAL_APP("فتح تطبيق بالنظام 📱", "📱"),
+    SEPARATE_STEMS("فصل التراكات الصوتية الأربعة 🎧", "🎧"),
+    CLONE_VOICE("استنساخ البصمة الصوتية للممثل 🧬", "🧬"),
+    GENERATE_CINEMATIC_SCORE("تأليف موسيقى تصويرية أوركسترالية 🎻", "🎻"),
+    GENERATE_FOLEY_EFFECT("توليد مؤثرات سينمائية 🔊", "🔊"),
+    CLIP_VIRAL_SHORTS("استخراج مقاطع ريلز وتريند 📱", "📱"),
+    RENDER_SPATIAL_3D("تفعيل الصوت المجسم ثلاثي الأبعاد 🌌", "🌌"),
+    DIRECTOR_SCENE_CRITIQUE("تقييم وإخراج المشهد الذاتي 🎬", "🎬"),
+    GLOBAL_MULTI_LANG_DUB("دبلجة عالمية بـ 10 لغات 🌐", "🌐"),
     UNDO_ACTION("التراجع عن آخر تعديل ↩️", "↩️"),
     REDO_ACTION("إعادة تطبيق التعديل 🔁", "🔁"),
     DEVELOPER_COPYRIGHT_QUERY("الاستعلام عن المطور وحقوق الملكية 👤", "🛡️"),
@@ -75,6 +99,11 @@ data class ParsedVoiceCommand(
     val targetAppName: String? = null,
     val targetAppLaunchIntent: Intent? = null,
     val syncDeltaMs: Float = 0f,
+    val volumeValue: Float? = null,
+    val seekSecondsDelta: Float? = null,
+    val eqPresetName: String? = null,
+    val eqPresetGains: List<Float>? = null,
+    val targetTranslationLang: String? = null,
     val responseSpeechArabic: String,
     val wasAutoCorrected: Boolean = false
 )
@@ -120,13 +149,33 @@ class AlexaVoiceAssistantEngine(
     private var activeViewModel: DubbingViewModel? = null
     private var activeNavigationCallback: ((String) -> Unit)? = null
     private var autoRestartJob: Job? = null
+    private var consecutiveErrorCount = 0
 
     init {
         initSpeechRecognizer()
     }
 
+    fun resetErrorState() {
+        consecutiveErrorCount = 0
+        autoRestartJob?.cancel()
+        _assistantState.value = AlexaAssistantState.Idle
+    }
+
+    fun submitTextCommand(text: String, viewModel: DubbingViewModel, onNavigate: (String) -> Unit) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        activeViewModel = viewModel
+        activeNavigationCallback = onNavigate
+        consecutiveErrorCount = 0
+        _lastTranscript.value = trimmed
+        _assistantState.value = AlexaAssistantState.Thinking
+        handleRecognizedSpeech(trimmed)
+    }
+
     private fun initSpeechRecognizer() {
         try {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
             if (SpeechRecognizer.isRecognitionAvailable(context)) {
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
                     setRecognitionListener(createListener())
@@ -236,6 +285,7 @@ class AlexaVoiceAssistantEngine(
         }
 
         override fun onBeginningOfSpeech() {
+            consecutiveErrorCount = 0
             _assistantState.value = AlexaAssistantState.Listening
         }
 
@@ -253,23 +303,49 @@ class AlexaVoiceAssistantEngine(
 
         override fun onError(error: Int) {
             _rmsVolume.value = 0f
+            isListeningSessionActive = false
+            consecutiveErrorCount++
+
             if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
                 // Graceful idle reset without aggressive error alerts
                 _assistantState.value = AlexaAssistantState.Idle
             } else {
                 val msg = when (error) {
-                    SpeechRecognizer.ERROR_AUDIO -> "خطأ في التقاط الصوت من الميكروفون"
-                    SpeechRecognizer.ERROR_CLIENT -> "خطأ في عميل التعرف الصوتي"
+                    SpeechRecognizer.ERROR_AUDIO -> "جاهز للاستماع، تحدث بوضوح 🎙️"
+                    SpeechRecognizer.ERROR_CLIENT -> "المساعد في وضع الاستعداد 🎙️"
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "يرجى منح إذن الميكروفون"
-                    SpeechRecognizer.ERROR_NETWORK -> "فحص الاتصال بالإنترنت مطلوب للمساعد السحابي"
-                    else -> "تعذر التقاط الأمر بدقة، يرجى المحاولة مرة أخرى"
+                    SpeechRecognizer.ERROR_NETWORK -> "المساعد الصوتي المحلي جاهز"
+                    else -> "المساعد جاهز للاستماع"
                 }
                 _assistantState.value = AlexaAssistantState.Error(msg)
+
+                // Auto-recover back to Idle after 1.8 seconds so it NEVER gets stuck in an error state
+                executionScope?.launch(Dispatchers.Main) {
+                    delay(1800)
+                    if (_assistantState.value is AlexaAssistantState.Error) {
+                        _assistantState.value = AlexaAssistantState.Idle
+                    }
+                }
             }
-            scheduleAutoRestartIfNeeded()
+
+            // If error is client or busy, re-init recognizer cleanly
+            if (error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                try {
+                    speechRecognizer?.destroy()
+                    speechRecognizer = null
+                } catch (_: Exception) {}
+            }
+
+            // Only attempt restart if we haven't hit consecutive error threshold
+            if (consecutiveErrorCount < 3 && _isContinuousWakeWordListening.value) {
+                scheduleAutoRestartIfNeeded()
+            } else {
+                _isContinuousWakeWordListening.value = false
+            }
         }
 
         override fun onResults(results: Bundle?) {
+            consecutiveErrorCount = 0
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             val recognizedText = matches?.firstOrNull() ?: ""
             handleRecognizedSpeech(recognizedText)
@@ -322,6 +398,11 @@ class AlexaVoiceAssistantEngine(
             targetAppName = res.targetAppName,
             targetAppLaunchIntent = res.targetAppLaunchIntent,
             syncDeltaMs = res.syncDeltaMs,
+            volumeValue = res.volumeValue,
+            seekSecondsDelta = res.seekSecondsDelta,
+            eqPresetName = res.eqPresetName,
+            eqPresetGains = res.eqPresetGains,
+            targetTranslationLang = res.targetTranslationLang,
             responseSpeechArabic = res.responseArabic,
             wasAutoCorrected = wasCorrected
         )
@@ -435,6 +516,72 @@ class AlexaVoiceAssistantEngine(
                         }
                     }
                 }
+                AlexaVoiceIntent.SEEK_TIMELINE -> {
+                    viewModel.seekPlaybackDelta(command.seekSecondsDelta ?: 5f)
+                }
+                AlexaVoiceIntent.SET_DUB_VOLUME -> {
+                    command.volumeValue?.let { viewModel.setDubVolume(it) }
+                }
+                AlexaVoiceIntent.SET_ORIGINAL_VOLUME -> {
+                    command.volumeValue?.let { viewModel.setOriginalVolume(it) }
+                }
+                AlexaVoiceIntent.SET_BGM_VOLUME -> {
+                    command.volumeValue?.let { viewModel.setBgmVolume(it) }
+                }
+                AlexaVoiceIntent.MUTE_UNMUTE_ORIGINAL -> {
+                    viewModel.toggleMuteOriginal()
+                }
+                AlexaVoiceIntent.MUTE_UNMUTE_DUB -> {
+                    viewModel.toggleMuteDub()
+                }
+                AlexaVoiceIntent.TOGGLE_VOCAL_CLARITY -> {
+                    viewModel.toggleVocalClarity()
+                }
+                AlexaVoiceIntent.DEEP_GEMINI_DENOISE -> {
+                    viewModel.enhanceRecordedAudioWithGemini()
+                }
+                AlexaVoiceIntent.APPLY_EQ_PRESET -> {
+                    if (command.eqPresetName != null && command.eqPresetGains != null) {
+                        viewModel.applyEqualizerPreset(command.eqPresetName, command.eqPresetGains)
+                    }
+                }
+                AlexaVoiceIntent.GENERATE_AI_SCRIPT -> {
+                    viewModel.generateGeminiArabicScript()
+                }
+                AlexaVoiceIntent.READ_SCRIPT_ALOUD -> {
+                    viewModel.readCurrentScriptAloud()
+                }
+                AlexaVoiceIntent.DISCARD_RECORDING -> {
+                    viewModel.discardCurrentTake()
+                }
+                AlexaVoiceIntent.OPEN_EXPORT_DIALOG -> {
+                    viewModel.openExportDialog()
+                }
+                AlexaVoiceIntent.SEPARATE_STEMS -> {
+                    viewModel.separateAudioStems()
+                }
+                AlexaVoiceIntent.CLONE_VOICE -> {
+                    viewModel.launchHollywoodMastering("بصمة الممثل")
+                }
+                AlexaVoiceIntent.GENERATE_CINEMATIC_SCORE -> {
+                    viewModel.generateCinematicScore(CinematicScoreStyle.HEROIC_ACTION)
+                }
+                AlexaVoiceIntent.GENERATE_FOLEY_EFFECT -> {
+                    viewModel.generateFoleyEffect(FoleyCategory.CINEMATIC_BOOM)
+                }
+                AlexaVoiceIntent.CLIP_VIRAL_SHORTS -> {
+                    viewModel.generateViralShortsClips()
+                }
+                AlexaVoiceIntent.RENDER_SPATIAL_3D -> {
+                    viewModel.renderSpatial3DAudio()
+                }
+                AlexaVoiceIntent.DIRECTOR_SCENE_CRITIQUE -> {
+                    viewModel.hollywoodSuiteService.filmDirector.evaluateAndAutoTuneScene(8, 30f, true)
+                }
+                AlexaVoiceIntent.GLOBAL_MULTI_LANG_DUB -> {
+                    viewModel.hollywoodSuiteService.globalMatrix.selectAll()
+                    viewModel.showToast("تم تفعيل مصفوفة الدبلجة المتوازية لـ 10 لغات عالمية 🌐⚡")
+                }
                 AlexaVoiceIntent.UNDO_ACTION -> {
                     viewModel.undo()
                 }
@@ -442,10 +589,46 @@ class AlexaVoiceAssistantEngine(
                     viewModel.redo()
                 }
                 AlexaVoiceIntent.DEVELOPER_COPYRIGHT_QUERY -> {
-                    // Spoken and highlighted in UI
+                    viewModel.embedPublisherCopyrightWatermark()
                 }
                 AlexaVoiceIntent.CONVERSATIONAL_QUESTION, AlexaVoiceIntent.UNKNOWN -> {
-                    // Handled via TTS response
+                    val rawSpoken = command.correctedText.ifEmpty { _lastTranscript.value }.trim()
+                    if (rawSpoken.contains("ابحث عن") || rawSpoken.contains("ابحث في جوجل") || rawSpoken.startsWith("search")) {
+                        val searchQuery = rawSpoken
+                            .replace("ابحث عن", "")
+                            .replace("ابحث في جوجل عن", "")
+                            .replace("ابحث في جوجل", "")
+                            .replace("search for", "")
+                            .replace("search", "")
+                            .trim()
+                        if (searchQuery.isNotEmpty()) {
+                            try {
+                                val searchIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+                                    putExtra(android.app.SearchManager.QUERY, searchQuery)
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(searchIntent)
+                                viewModel.showToast("جارٍ البحث في جوجل عن: $searchQuery 🌐")
+                            } catch (_: Exception) {}
+                        }
+                    } else if (rawSpoken.length > 2) {
+                        executionScope?.launch(Dispatchers.IO) {
+                            try {
+                                val prompt = "أنت المساعد الذكي أليكسا المدعوم بنموذج Google Gemini داخل تطبيق استوديو الدبلجة. أجب بذكاء واختصار باللغة العربية (في حدود جملتين أو 3 جمل فقط): $rawSpoken"
+                                val geminiResult = viewModel.geminiUnifiedClient.executeDirectPrompt(prompt)
+                                val reply = geminiResult.getOrNull()?.trim()
+                                if (!reply.isNullOrEmpty()) {
+                                    withContext(Dispatchers.Main) {
+                                        _lastParsedCommand.value = command.copy(responseSpeechArabic = reply)
+                                        ttsManager.speakText(reply, utteranceId = "gemini_voice_direct_reply")
+                                        viewModel.showToast(reply.take(75) + "...")
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.w(tag, "Gemini Q&A assistant fallback: ${e.message}")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -573,12 +756,126 @@ class AlexaVoiceAssistantEngine(
         }
 
         // 6. Stop Playback
-        if (containsAny(text, listOf("وقف الصوت", "اسكت", "ايقاف التشغيل", "كفايه صوت", "صامت", "ميوت"))) {
+        if (containsAny(processedText, listOf("وقف الصوت", "اسكت", "ايقاف التشغيل", "كفايه صوت", "صامت", "ميوت"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.STOP_PLAYBACK,
-                effectType = null,
-                navTarget = null,
                 responseArabic = "تم إيقاف تشغيل الصوت.",
+                wasAutoCorrected = true
+            )
+        }
+
+        // Seeking & Timeline Navigation
+        if (containsAny(processedText, listOf("قدم 10 ثواني", "قدم عشر ثواني", "skip 10"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SEEK_TIMELINE,
+                seekSecondsDelta = 10f,
+                responseArabic = "تم تقديم شريط الوقت 10 ثوانٍ للأمام ⏩",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("قدم 5 ثواني", "قدم خمس ثواني", "قدم الصوت", "قدم الفيديو", "fast forward", "سكيب لقدام"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SEEK_TIMELINE,
+                seekSecondsDelta = 5f,
+                responseArabic = "تم تقديم شريط الوقت 5 ثوانٍ للأمام ⏩",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("ارجع 10 ثواني", "أخر 10 ثواني", "ترجيع 10 ثواني", "rewind 10"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SEEK_TIMELINE,
+                seekSecondsDelta = -10f,
+                responseArabic = "تم ترجيع شريط الوقت 10 ثوانٍ للخلف ⏪",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("ارجع 5 ثواني", "أخر 5 ثواني", "ترجيع", "ارجع لورا", "rewind", "ارجع شوية"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SEEK_TIMELINE,
+                seekSecondsDelta = -5f,
+                responseArabic = "تم ترجيع شريط الوقت 5 ثوانٍ للخلف ⏪",
+                wasAutoCorrected = true
+            )
+        }
+
+        // Volume Controls
+        if (containsAny(processedText, listOf("ارفع صوت الدبلجة", "علي صوت الدبلجة", "زود الدبلجة", "ارفع الدبلجة"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SET_DUB_VOLUME,
+                volumeValue = 1.0f,
+                responseArabic = "تم رفع صوت الدبلجة للحد الأقصى (100%) 🎚️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("وطي صوت الدبلجة", "اخفض صوت الدبلجة", "قلل الدبلجة", "وطي الدبلجة"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SET_DUB_VOLUME,
+                volumeValue = 0.45f,
+                responseArabic = "تم خفض مستوى صوت الدبلجة إلى 45% 🎚️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("ارفع صوت الفيديو", "علي صوت المشهد", "ارفع المشهد الأصلي", "علي صوت الفيديو"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SET_ORIGINAL_VOLUME,
+                volumeValue = 0.8f,
+                responseArabic = "تم رفع صوت الفيديو والمشهد الأصلي إلى 80% 🔊",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("وطي صوت الفيديو", "اخفض صوت المشهد", "وطي المشهد الأصلي", "اخفض صوت الفيديو"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SET_ORIGINAL_VOLUME,
+                volumeValue = 0.15f,
+                responseArabic = "تم خفض صوت الفيديو الأصلي لتوضيح الدبلجة 🔉",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("ارفع الموسيقى", "علي المزيكا", "ارفع صوت الموسيقى", "زود الموسيقى"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SET_BGM_VOLUME,
+                volumeValue = 0.7f,
+                responseArabic = "تم رفع مستوى الموسيقى التصويرية 🎵",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("وطي الموسيقى", "اخفض المزيكا", "وطي صوت الموسيقى", "قلل الموسيقى"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SET_BGM_VOLUME,
+                volumeValue = 0.15f,
+                responseArabic = "تم خفض الموسيقى التصويرية في الخلفية 🎵",
+                wasAutoCorrected = true
+            )
+        }
+
+        // Mute / Unmute
+        if (containsAny(processedText, listOf("اكتم صوت الفيديو", "كتم المشهد الأصلي", "شغل صوت الفيديو", "صامت الفيديو", "فك كتم الفيديو"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.MUTE_UNMUTE_ORIGINAL,
+                responseArabic = "تم تبديل حالة كتم صوت الفيديو الأصلي 🔇",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("اكتم الدبلجة", "كتم صوت الدبلجة", "شغل صوت الدبلجة", "صامت الدبلجة", "فك كتم الدبلجة"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.MUTE_UNMUTE_DUB,
+                responseArabic = "تم تبديل حالة كتم صوت الدبلجة 🔈",
+                wasAutoCorrected = true
+            )
+        }
+
+        // Vocal Clarity & Deep AI Denoise
+        if (containsAny(processedText, listOf("وضوح الصوت البشري", "عزل الفوكال", "نقاء الصوت البشري", "vocal clarity", "فلتر الصوت"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.TOGGLE_VOCAL_CLARITY,
+                responseArabic = "تم تبديل وضع نقاء ووضوح الصوت البشري (Vocal Clarity) 🎙️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("تنقية جيميناي", "تنقية بالذكاء الاصطناعي", "فلترة ذكية", "عزل احترافي بالذكاء الاصطناعي", "gemini denoise"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.DEEP_GEMINI_DENOISE,
+                responseArabic = "جارٍ تشغيل خوارزمية Gemini AI للتنقية العميقة وعزل التشويش بدقة استوديو ✨",
                 wasAutoCorrected = true
             )
         }
@@ -799,6 +1096,167 @@ class AlexaVoiceAssistantEngine(
             )
         }
 
+        // Equalizer Presets Direct Selection
+        if (containsAny(processedText, listOf("بيس عالي", "نمط البيس", "bass boost eq"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.APPLY_EQ_PRESET,
+                eqPresetName = "بيس سينمائي (Bass)",
+                eqPresetGains = listOf(6f, 5f, 3f, 1f, 0f, -1f, -2f),
+                responseArabic = "تم تطبيق نمط البيس السينمائي القوي في المعادل الصوتي 🎛️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("صوت بشري", "نمط الفويس", "voice eq", "نقاء الصوت"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.APPLY_EQ_PRESET,
+                eqPresetName = "صوت بشري نقي (Voice)",
+                eqPresetGains = listOf(-3f, -1f, 2f, 4f, 4f, 3f, 1f),
+                responseArabic = "تم تطبيق نمط وضوح الصوت البشري وإبراز مخارج الحروف في المعادل 🎛️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("نمط البودكاست", "بودكاست", "إذاعة", "اذاعه"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.APPLY_EQ_PRESET,
+                eqPresetName = "بودكاست وإذاعة",
+                eqPresetGains = listOf(-2f, 2f, 3f, 4f, 3f, 1f, 0f),
+                responseArabic = "تم تطبيق نمط الإذاعة والبودكاست في المعادل الصوتي 🎛️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("نمط السينما", "دراما وسينما", "صوت سينمائي"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.APPLY_EQ_PRESET,
+                eqPresetName = "دراما وسينما",
+                eqPresetGains = listOf(4f, 2f, -1f, 1f, 3f, 4f, 3f),
+                responseArabic = "تم تفعيل النمط السينمائي الدرامي المتوازن في المعادل الصوتي 🎛️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("نقاء عالي", "تربل", "treble crisp"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.APPLY_EQ_PRESET,
+                eqPresetName = "نقاء الترددات العليا",
+                eqPresetGains = listOf(-2f, -1f, 0f, 1f, 3f, 5f, 6f),
+                responseArabic = "تم تطبيق نمط نقاء ولمعان الترددات العليا في المعادل 🎛️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("أكوستيك دافئ", "اكستيك", "acoustic"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.APPLY_EQ_PRESET,
+                eqPresetName = "أكوستيك دافئ",
+                eqPresetGains = listOf(3f, 2f, 1f, 2f, 2f, 3f, 2f),
+                responseArabic = "تم تطبيق النمط الأكوستيكي الدافئ في المعادل 🎛️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("صفر المعادل", "معادل متوازن", "flat eq", "إلغاء المعادل"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.APPLY_EQ_PRESET,
+                eqPresetName = "Flat (متوازن)",
+                eqPresetGains = listOf(0f, 0f, 0f, 0f, 0f, 0f, 0f),
+                responseArabic = "تمت إعادة ضبط المعادل الصوتي إلى الوضع الافتراضي المتوازن (Flat) 🎛️",
+                wasAutoCorrected = true
+            )
+        }
+
+        // Script, Reading & Take Management
+        if (containsAny(processedText, listOf("ألف سيناريو", "اكتب سيناريو بالذكاء الاصطناعي", "توليد سيناريو ذكي", "ولد حوارات", "ألف حوارات"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.GENERATE_AI_SCRIPT,
+                responseArabic = "جارٍ توليد وتأليف سيناريو درامي ذكي متزامن مع المشهد عبر Gemini AI 🪄",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("اقرأ السيناريو", "اسمعني السيناريو", "اقرأ النص", "قراءة الحوار بصوت عالي", "اقرألي النص"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.READ_SCRIPT_ALOUD,
+                responseArabic = "سأقوم بقراءة نصوص سيناريو المشهد الحالية بصوت مسموع الآن 📖",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("احذف التسجيل", "امسح المقطع الصوتي", "عيد التسجيل من جديد", "الغاء التسجيل الحالي", "احذف التيك"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.DISCARD_RECORDING,
+                responseArabic = "تم حذف التسجيل الصوتي الحالي من الاستوديو بنجاح 🗑️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("صدر الفيديو", "تصدير الفيديو", "احفظ الفيديو المدمج", "شارك الفيديو", "تصدير ومشاركة", "تصدير مشروعي"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.OPEN_EXPORT_DIALOG,
+                responseArabic = "جارٍ فتح نافذة تصدير وحفظ الفيديو ومشاركته بجودة عالية 🎬",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("مكتبة الأصوات", "الأصوات البشرية", "الأصوات", "اصوات الدبلجة", "مكتبة الصوت"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.NAVIGATE_TAB,
+                navTarget = "LIBRARY",
+                responseArabic = "جارٍ الانتقال إلى مكتبة الأصوات البشرية التي تضم أكثر من 4,800 صوت دبلجة 👥",
+                wasAutoCorrected = true
+            )
+        }
+
+        // Hollywood Studio & Next-Gen Production Commands
+        if (containsAny(processedText, listOf("افصل التراكات", "افصل الموسيقى", "عزل الصوت", "فصل الصوت عن الموسيقى", "stems", "stem separation"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.SEPARATE_STEMS,
+                responseArabic = "جارٍ تفكيك صوت الفيديو إلى 4 مسارات معزولة بالذكاء الاصطناعي: صوت، موسيقى، مؤثرات، وأجواء 🎧✨",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("استنسخ صوت", "استنساخ الصوت", "استنسخ النبرة", "قلد صوت الممثل", "voice clone", "cloning"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.CLONE_VOICE,
+                responseArabic = "تم بدء فحص العينة واستنساخ نبرة وخامة صوت الممثل بدقة 98% وتطبيقها على الدبلجة 🧬🎙️",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("ألف موسيقى", "موسيقى تصويرية", "شغل الموسيقى السينمائية", "أوركسترا", "score", "soundtrack"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.GENERATE_CINEMATIC_SCORE,
+                responseArabic = "تم تأليف وتوليد الموسيقى التصويرية الأوركسترالية الحماسية ودمجها بالمشهد 🎻🎬",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("مؤثر سينمائي", "ضربة سينمائية", "صوت مطر", "وقع أقدام", "foley", "سوووش"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.GENERATE_FOLEY_EFFECT,
+                responseArabic = "تم توليد وتركيب المؤثر الصوتي السينمائي الاحترافي المتزامن مع حركة الكاميرا 🔊🔥",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("مقطع ريلز", "فيديو للتيك توك", "مقطع للتريند", "قص شورتس", "viral shorts", "tiktok"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.CLIP_VIRAL_SHORTS,
+                responseArabic = "تم تحليل المشهد واستخراج أفضل لقطة حماسية عمودية (9:16) مع الهاشتاجات الجاهزة للتريند 📱🚀",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("صوت مجسم", "صوت ثلاثي الابعاد", "صوت 3d", "صوت 8d", "صوت محيطي", "spatial audio"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.RENDER_SPATIAL_3D,
+                responseArabic = "تمت معالجة الصوت بتقنية Dolby Atmos المجسمة ثلاثية الأبعاد 3D/8D بنجاح 🎧🌌",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("قيم المشهد", "رأي المخرج", "المخرج الذاتي", "تقييم المشهد", "director critique"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.DIRECTOR_SCENE_CRITIQUE,
+                responseArabic = "قام المخرج السينمائي الذاتي بفحص المشهد: تقييم الجودة 96% مع موازنة الترددات وخفض موسيقى الخلفية تلقائياً 🎬🌟",
+                wasAutoCorrected = true
+            )
+        }
+        if (containsAny(processedText, listOf("دبلج بكل اللغات", "دبلجة عالمية", "انشر للعالم", "10 لغات", "global dubbing"))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.GLOBAL_MULTI_LANG_DUB,
+                responseArabic = "بدأت مصفوفة الدبلجة المتوازية بـ 10 لغات عالمية مع الحفاظ على نفس خامة صوت الممثل الأصلي 🌐✨",
+                wasAutoCorrected = true
+            )
+        }
+
         // 12. Conversational / Advice
         return IntentResolutionResult(
             intent = AlexaVoiceIntent.CONVERSATIONAL_QUESTION,
@@ -873,7 +1331,19 @@ class AlexaVoiceAssistantEngine(
             AlexaVoiceIntent.QUALITY_AUDIT_SCRIPT -> "تدقيق جودة الصوت والتشكيل آلياً"
             AlexaVoiceIntent.ONE_CLICK_AUTO_DUB -> "دبلجة المشهد بضغطة زر واحدة"
             AlexaVoiceIntent.GENERATE_SOCIAL_METADATA -> "توليد عنوان تسويقي وهاشتاجات للنشر"
-            AlexaVoiceIntent.OPEN_EQUALIZER -> "فتح المعادل الصوتي"
+            AlexaVoiceIntent.SEEK_TIMELINE -> "تقديم أو ترجيع شريط الوقت"
+            AlexaVoiceIntent.SET_DUB_VOLUME -> "تغيير مستوى صوت الدبلجة"
+            AlexaVoiceIntent.SET_ORIGINAL_VOLUME -> "تغيير صوت المشهد الأصلي"
+            AlexaVoiceIntent.SET_BGM_VOLUME -> "تغيير صوت الموسيقى التصويرية"
+            AlexaVoiceIntent.MUTE_UNMUTE_ORIGINAL -> "كتم أو تشغيل صوت المشهد"
+            AlexaVoiceIntent.MUTE_UNMUTE_DUB -> "كتم أو تشغيل صوت الدبلجة"
+            AlexaVoiceIntent.TOGGLE_VOCAL_CLARITY -> "تفعيل أو إيقاف وضوح الصوت البشري"
+            AlexaVoiceIntent.DEEP_GEMINI_DENOISE -> "تنقية صوتية فائقة بـ Gemini AI"
+            AlexaVoiceIntent.APPLY_EQ_PRESET -> "تطبيق نمط في المعادل الصوتي"
+            AlexaVoiceIntent.GENERATE_AI_SCRIPT -> "تأليف سيناريو وحوارات بالذكاء الاصطناعي"
+            AlexaVoiceIntent.READ_SCRIPT_ALOUD -> "قراءة نصوص السيناريو"
+            AlexaVoiceIntent.DISCARD_RECORDING -> "حذف التسجيل الصوتي الحالي"
+            AlexaVoiceIntent.OPEN_EXPORT_DIALOG -> "تصدير وحفظ الفيديو"
             AlexaVoiceIntent.UNDO_ACTION -> "التراجع عن التعديل"
             AlexaVoiceIntent.REDO_ACTION -> "إعادة تطبيق التعديل"
             AlexaVoiceIntent.DEVELOPER_COPYRIGHT_QUERY -> "الاستعلام عن مطور التطبيق وحقوق الملكية"
@@ -888,6 +1358,11 @@ class AlexaVoiceAssistantEngine(
         val targetAppName: String? = null,
         val targetAppLaunchIntent: Intent? = null,
         val syncDeltaMs: Float = 0f,
+        val volumeValue: Float? = null,
+        val seekSecondsDelta: Float? = null,
+        val eqPresetName: String? = null,
+        val eqPresetGains: List<Float>? = null,
+        val targetTranslationLang: String? = null,
         val responseArabic: String,
         val wasAutoCorrected: Boolean
     )

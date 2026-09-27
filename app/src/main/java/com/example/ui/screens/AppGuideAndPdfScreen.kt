@@ -384,6 +384,68 @@ fun AppGuideAndPdfScreen(
                 whatItDoes = "تصدير العمل النهائي بصيغ متعددة: فيديو MP4 مدمج بالكامل، صوت MP3 ماستر، ملف ترجمة SRT، أو حزمة مضغوطة ZIP.",
                 howToUse = "انقر زر [تصدير المشروع]، اختر الصيغة والجودة المطلوبة، ثم اضغط [بدء التصدير] واحفظ الملف في هاتفك أو شاركه.",
                 proTip = "الملفات المصدرة تُحفظ في مجلد الفيديوهات (Movies/DubbedVideos) لتظهر فوراً في تطبيق المعرض (Gallery)."
+            ),
+
+            // --- Hollywood Suite & Alexa Voice Assistant (Newcomers Master Guide) ---
+            ToolGuideItem(
+                id = "alexa_voice_assistant",
+                titleArabic = "المساعد الصوتي الذكي أليكسا (Alexa Voice Assistant)",
+                category = "🎙️ المساعد الذكي",
+                targetTab = AppTab.STUDIO,
+                locationDescription = "الزر العائم الصوتي 🎙️ المضيء في أسفل يسار الشاشة أو نداء 'أليكسا'",
+                icon = Icons.Default.Mic,
+                iconColor = Color(0xFF00E5FF),
+                whatItDoes = "مساعد صوتي ذكي فوري مثل أليكسا وجيمناي، يتعرف على الأوامر الصوتية باللغة العربية واللهجات وينفذ الأوامر دون أخطاء (تشغيل، تسجيل، دبلجة، كتابة سيناريو، مكس).",
+                howToUse = "اضغط على زر الميكروفون العائم أو انطق 'أليكسا' ثم اذكر أمرك مثل: 'ابدأ التسجيل'، 'دبلج المشهد'، 'احفظ الحقوق'، أو 'افصل التراكات'.",
+                proTip = "إذا كنت في مكان صامت، يمكنك أيضاً كتابة أي أمر تريده في حقل الكتابة المباشر داخل نافذة أليكسا وسينفذه فوراً."
+            ),
+            ToolGuideItem(
+                id = "hollywood_master_suite",
+                titleArabic = "استوديو هوليوود للإنتاج السينمائي (Hollywood Production Suite)",
+                category = "🎬 الاستوديو",
+                targetTab = AppTab.STUDIO,
+                locationDescription = "بطاقة استوديو هوليوود المميزة في أعلى شاشة الاستوديو",
+                icon = Icons.Default.AutoAwesome,
+                iconColor = Color(0xFFFFB300),
+                whatItDoes = "حزمة سينمائية شاملة تتيح بنقرة واحدة: فصل مسارات الصوت، محاذاة حركة الشفاه، توليد المؤثرات الصوتية، ومراجعة المخرج الذاتي للمشهد.",
+                howToUse = "اضغط على زر [بدء الإنتاج السينمائي الهوليوودي الكامل] وسيقوم النظام بتطبيق كافة المعالجات المتقدمة تلقائياً.",
+                proTip = "يمكنك تشغيل كل ميزة منفردة من شبكة الأزرار (فصل التراكات، سيمفونية أوركسترا، مؤثرات Foley)."
+            ),
+            ToolGuideItem(
+                id = "acoustic_watermark_rights",
+                titleArabic = "درع حفظ الحقوق بالبصمة الصوتية (Ultrasonic Copyright Shield)",
+                category = "🛡️ الأمان والتطوير",
+                targetTab = AppTab.STUDIO,
+                locationDescription = "زر [حفظ الحقوق لمحمد سليمه 🛡️] داخل استوديو هوليوود أو أمر أليكسا",
+                icon = Icons.Default.Security,
+                iconColor = Color(0xFF10B981),
+                whatItDoes = "زرع بصمة مشفرة غير مسموعة في ترددات الصوت الفوق صوتية لحفظ جميع الحقوق والملكية الفكرية للمطور والناشر محمد سليمه وتوليد شهادة رقمية SHA-256.",
+                howToUse = "انقر على زر الحماية أو قل لأليكسا 'احفظ الحقوق'، وسيدمج النظام التوقيع التشفيري في المقطع الصوتي لحمايته من السرقة.",
+                proTip = "البصمة غير مسموعة للأذن البشرية ولا تؤثر إطلاقاً على جودة الصوت ولكنها قابلة للكشف والتحقق رقمياً."
+            ),
+            ToolGuideItem(
+                id = "vintage_mics_age_morph",
+                titleArabic = "ميكروفونات هوليوود وتعديل العمر (Vintage Mics & Vocal Morph)",
+                category = "🎙️ الاستوديو",
+                targetTab = AppTab.STUDIO,
+                locationDescription = "زر [ميكروفون نيومان وتعديل العمر 🎙️] داخل استوديو هوليوود",
+                icon = Icons.Default.Tune,
+                iconColor = Color(0xFFA78BFA),
+                whatItDoes = "محاكاة خامة ميكروفونات الاستوديو العالمية (نيومان U87 وشور SM7B) مع إمكانية تحويل عمر الصوت (طفل، شاب، رجل ناضج، عجوز).",
+                howToUse = "اضغط على الزر لتطبيق الدفء السينمائي وضبط معادل الترددات الطيفي على صوتك المسجل.",
+                proTip = "اختر ميكروفون نيومان U87 لإعطاء صوتك فخامة الرواة السينمائيين في الأفلام الوثائقية."
+            ),
+            ToolGuideItem(
+                id = "live_stream_game_dub",
+                titleArabic = "الدبلجة الحية للبثوث المباشرة (Live Stream & Game Dubbing)",
+                category = "⚡ دبلجة فورية",
+                targetTab = AppTab.STUDIO,
+                locationDescription = "زر [الدبلجة الحية المباشرة 🔴] في استوديو هوليوود",
+                icon = Icons.Default.Videocam,
+                iconColor = Color(0xFFEF4444),
+                whatItDoes = "بروتوكول معالجة فائق السرعة بكمون منخفض (85ms) لدبلجة البثوث الحية على تويتش ويوتيوب والتعليق الرياضي.",
+                howToUse = "انقر لتفعيل وضع البث المباشر؛ ستظهر شارة البث الأحمر الحي وسيعمل النظام في الخلفية بسلاسة.",
+                proTip = "هذا النمط مصمم لاستهلاك بطارية منخفض جداً لتشغيل البثوث لساعات طويلة دون حرارة."
             )
         )
     }

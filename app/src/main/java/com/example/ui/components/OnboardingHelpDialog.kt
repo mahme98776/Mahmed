@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -154,6 +155,19 @@ fun OnboardingHelpDialog(
                     "حفظ مشاريعك في قاعدة البيانات المحلية المشفرة للمتابعة لاحقاً."
                 ),
                 proTip = "حسابك محمي بدرع أمني مشفر لحماية الملكية والبيانات."
+            ),
+            OnboardingHelpStep(
+                stepNumber = 6,
+                title = "المساعد الذكي أليكسا وحفظ الحقوق 🎙️🛡️",
+                subtitle = "التحكم الصوتي الشامل وحماية الملكية الفكرية",
+                icon = Icons.Default.Mic,
+                accentColor = Color(0xFF00E5FF),
+                details = listOf(
+                    "تحدث مع أليكسا باللغة العربية ونفذ أوامر الاستوديو مباشرة دون لمس الشاشة.",
+                    "استخدم ميكروفونات هوليوود الأسطورية (نيومان وشور) وتعديل العمر الصوتي بنقرة زر.",
+                    "زرع بصمة صوتية مشفرة غير مسموعة تحفظ جميع الحقوق للمطور والناشر محمد سليمه."
+                ),
+                proTip = "يمكنك تشغيل المساعد الصوتي دائماً من الزر العائم الأزرق في أي شاشة."
             )
         )
     }

@@ -330,6 +330,56 @@ class MediaExportManager(private val context: Context) {
                 strokeCap = Paint.Cap.ROUND
             }
 
+            // High-Performance Hardware Accelerated Pre-allocated Graphics Objects (Zero In-Loop Allocations)
+            val bgGradient = LinearGradient(
+                0f, 0f, width.toFloat(), height.toFloat(),
+                AndroidColor.parseColor("#141218"),
+                clip.primaryColor.toInt(),
+                Shader.TileMode.CLAMP
+            )
+            val bgPaint = Paint().apply { shader = bgGradient }
+
+            val badgeWidth = 140f * scaleFactor
+            val badgeHeight = 32f * scaleFactor
+            val badgeRect = RectF(
+                width - badgeWidth - 30f * scaleFactor,
+                30f * scaleFactor,
+                width - 30f * scaleFactor,
+                30f * scaleFactor + badgeHeight
+            )
+
+            val avatarCenterY = height / 2f - 60f * scaleFactor
+            val avatarRadius = 80f * scaleFactor
+            val avatarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.parseColor("#2B2930")
+            }
+            val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = 72f * scaleFactor
+                textAlign = Paint.Align.CENTER
+            }
+            val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.parseColor("#D0BCFF")
+                textSize = 24f * scaleFactor
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+
+            val subBoxMarginHorizontal = 100f * scaleFactor
+            val subBoxHeight = 130f * scaleFactor
+            val subBoxBottom = height - 50f * scaleFactor
+            val subBoxRect = RectF(
+                subBoxMarginHorizontal,
+                subBoxBottom - subBoxHeight,
+                width - subBoxMarginHorizontal,
+                subBoxBottom
+            )
+            val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.parseColor("#E61E1B24")
+            }
+            val timelinePaintBg = Paint().apply { color = AndroidColor.parseColor("#49454F") }
+            val timelinePaintFg = Paint().apply { color = AndroidColor.parseColor("#FFD993") }
+            val barHeight = 12f * scaleFactor
+
             // Render loop
             for (frame in 0 until totalFrames) {
                 val currentSeconds = frame.toFloat() / frameRate
@@ -345,13 +395,6 @@ class MediaExportManager(private val context: Context) {
                 if (canvas != null) {
                     try {
                         // Draw Background Gradient
-                        val gradient = LinearGradient(
-                            0f, 0f, width.toFloat(), height.toFloat(),
-                            AndroidColor.parseColor("#141218"),
-                            clip.primaryColor.toInt(),
-                            Shader.TileMode.CLAMP
-                        )
-                        val bgPaint = Paint().apply { shader = gradient }
                         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
 
                         // Draw Header / Title
@@ -359,14 +402,6 @@ class MediaExportManager(private val context: Context) {
                         canvas.drawText(clip.title, width / 2f, 100f * scaleFactor, subPaint)
 
                         // Quality stamp badge at top right
-                        val badgeWidth = 140f * scaleFactor
-                        val badgeHeight = 32f * scaleFactor
-                        val badgeRect = RectF(
-                            width - badgeWidth - 30f * scaleFactor,
-                            30f * scaleFactor,
-                            width - 30f * scaleFactor,
-                            30f * scaleFactor + badgeHeight
-                        )
                         canvas.drawRoundRect(badgeRect, 8f * scaleFactor, 8f * scaleFactor, qualityBadgePaint)
                         canvas.drawText(
                             "${videoConfig.resolution.badge} • ${frameRate}fps",
@@ -385,26 +420,10 @@ class MediaExportManager(private val context: Context) {
                         val arabicText = activeLine?.textArabic ?: "🎙️ [مقطع مدبلج بصوت رائع]"
 
                         // Avatar container
-                        val avatarCenterY = height / 2f - 60f * scaleFactor
-                        val avatarRadius = 80f * scaleFactor
-                        val avatarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = AndroidColor.parseColor("#2B2930")
-                        }
                         canvas.drawCircle(width / 2f, avatarCenterY, avatarRadius, avatarPaint)
-
-                        val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            textSize = 72f * scaleFactor
-                            textAlign = Paint.Align.CENTER
-                        }
                         canvas.drawText(avatarEmoji, width / 2f, avatarCenterY + 25f * scaleFactor, emojiPaint)
 
                         // Character Name Badge
-                        val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = AndroidColor.parseColor("#D0BCFF")
-                            textSize = 24f * scaleFactor
-                            textAlign = Paint.Align.CENTER
-                            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                        }
                         canvas.drawText(charName, width / 2f, avatarCenterY + 120f * scaleFactor, namePaint)
 
                         // Soundwave animation
@@ -422,18 +441,6 @@ class MediaExportManager(private val context: Context) {
 
                         // Subtitle Box at Bottom
                         if (videoConfig.burnSubtitles) {
-                            val subBoxMarginHorizontal = 100f * scaleFactor
-                            val subBoxHeight = 130f * scaleFactor
-                            val subBoxBottom = height - 50f * scaleFactor
-                            val subBoxRect = RectF(
-                                subBoxMarginHorizontal,
-                                subBoxBottom - subBoxHeight,
-                                width - subBoxMarginHorizontal,
-                                subBoxBottom
-                            )
-                            val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                color = AndroidColor.parseColor("#E61E1B24")
-                            }
                             canvas.drawRoundRect(subBoxRect, 18f * scaleFactor, 18f * scaleFactor, boxPaint)
 
                             // Subtitle text (wrapped if long)
@@ -449,9 +456,6 @@ class MediaExportManager(private val context: Context) {
 
                         // Progress Timeline bar
                         val progress = currentSeconds / durationSeconds.toFloat()
-                        val timelinePaintBg = Paint().apply { color = AndroidColor.parseColor("#49454F") }
-                        val timelinePaintFg = Paint().apply { color = AndroidColor.parseColor("#FFD993") }
-                        val barHeight = 12f * scaleFactor
                         canvas.drawRect(0f, height - barHeight, width.toFloat(), height.toFloat(), timelinePaintBg)
                         canvas.drawRect(0f, height - barHeight, width * progress, height.toFloat(), timelinePaintFg)
 

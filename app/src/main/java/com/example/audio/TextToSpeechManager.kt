@@ -31,6 +31,15 @@ data class VoiceProfile(
     val description: String = ""
 )
 
+data class MultiSpeakerDialogueSegment(
+    val text: String,
+    val startSeconds: Float,
+    val endSeconds: Float,
+    val voiceProfile: VoiceProfile,
+    val speakerName: String = "",
+    val languageCode: String = "ar"
+)
+
 /**
  * Status representation of the Android TextToSpeech engine lifecycle.
  */
@@ -600,6 +609,138 @@ class TextToSpeechManager(private val context: Context) : TextToSpeech.OnInitLis
             out.write(pcmBuffer)
         }
         Log.i(tag, "Synthesized synchronized dubbing timeline WAV: ${outputFile.absolutePath} (${outputFile.length()} bytes)")
+        outputFile
+    }
+
+    /**
+     * Synthesizes a multi-speaker synchronized timeline where distinct speakers (Male, Female, Child, Narrator)
+     * are each spoken by their assigned [VoiceProfile].
+     * If two or more characters speak at the same timestamp (simultaneous dialogue), their 16-bit PCM
+     * samples are additively mixed together with saturation clipping so that both voices are distinctly heard!
+     */
+    suspend fun synthesizeMultiSpeakerTimelineWav(
+        segments: List<MultiSpeakerDialogueSegment>,
+        totalDurationSeconds: Float,
+        outputFile: File
+    ): File = withContext(Dispatchers.IO) {
+        val sampleRate = 16000
+        val safeTotalDuration = totalDurationSeconds.coerceAtLeast(3f)
+        val totalSamples = (safeTotalDuration * sampleRate).toInt()
+        val pcmBuffer = ByteArray(totalSamples * 2)
+
+        for ((index, segment) in segments.withIndex()) {
+            val text = segment.text.trim()
+            if (text.isBlank()) continue
+
+            val duration = (segment.endSeconds - segment.startSeconds).coerceAtLeast(0.8f)
+            val segStartSample = (segment.startSeconds * sampleRate).toInt().coerceIn(0, totalSamples - 1)
+            val tempLineFile = File(context.cacheDir, "multi_line_${System.currentTimeMillis()}_$index.wav")
+            val loc = resolveLocale(segment.languageCode)
+            val profile = segment.voiceProfile
+
+            var synthesizedBytes: ByteArray? = null
+
+            if (isEngineReady() && tts != null) {
+                try {
+                    val utteranceId = "multi_sync_${System.currentTimeMillis()}_$index"
+                    val synthDone = CompletableDeferred<Boolean>()
+                    val params = Bundle().apply {
+                        putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
+                    }
+
+                    fileSynthesisCallbacks[utteranceId] = { path ->
+                        synthDone.complete(path != null)
+                    }
+                    synthesisDestFiles[utteranceId] = tempLineFile
+
+                    withContext(Dispatchers.Main) {
+                        try {
+                            tts?.setLanguage(loc)
+                            tts?.setPitch(profile.pitch)
+                            val wordCount = text.split(Regex("\\s+")).size.coerceAtLeast(1)
+                            val naturalDur = (wordCount / 2.5f).coerceAtLeast(0.8f)
+                            val rate = (profile.speechRate * (naturalDur / duration)).coerceIn(0.75f, 1.85f)
+                            tts?.setSpeechRate(rate)
+                            val res = tts?.synthesizeToFile(text, params, tempLineFile, utteranceId)
+                            if (res != TextToSpeech.SUCCESS) {
+                                fileSynthesisCallbacks.remove(utteranceId)
+                                synthesisDestFiles.remove(utteranceId)
+                                synthDone.complete(false)
+                            }
+                        } catch (e: Exception) {
+                            Log.w(tag, "Multi-speaker TTS error for line $index: ${e.message}")
+                            synthDone.complete(false)
+                        }
+                    }
+
+                    withTimeoutOrNull(3000) {
+                        synthDone.await()
+                    }
+
+                    if (tempLineFile.exists() && tempLineFile.length() > 44) {
+                        val fileBytes = tempLineFile.readBytes()
+                        if (fileBytes.size > 44) {
+                            synthesizedBytes = fileBytes.copyOfRange(44, fileBytes.size)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(tag, "Error in multi-speaker segment $index: ${e.message}")
+                } finally {
+                    try { tempLineFile.delete() } catch (_: Exception) {}
+                }
+            }
+
+            // Mix speech PCM into master timeline buffer using additive mixing (preserving simultaneous dialogue!)
+            if (synthesizedBytes != null && synthesizedBytes.isNotEmpty()) {
+                val samplesToMix = minOf(synthesizedBytes.size / 2, (totalSamples - segStartSample))
+                for (s in 0 until samplesToMix) {
+                    val synthIdx = s * 2
+                    val synthSample = (synthesizedBytes[synthIdx].toInt() and 0xFF) or (synthesizedBytes[synthIdx + 1].toInt() shl 8)
+                    val synthShort = synthSample.toShort()
+
+                    val bufIdx = (segStartSample + s) * 2
+                    val curSample = (pcmBuffer[bufIdx].toInt() and 0xFF) or (pcmBuffer[bufIdx + 1].toInt() shl 8)
+                    val curShort = curSample.toShort()
+
+                    // Additive mix with saturation bounds
+                    val mixedInt = curShort.toInt() + synthShort.toInt()
+                    val clippedShort = mixedInt.coerceIn(-32767, 32767).toShort()
+
+                    pcmBuffer[bufIdx] = (clippedShort.toInt() and 0xFF).toByte()
+                    pcmBuffer[bufIdx + 1] = ((clippedShort.toInt() shr 8) and 0xFF).toByte()
+                }
+            } else {
+                // Fallback formant tone matched to this specific speaker profile's pitch
+                val segEndSample = (segment.endSeconds * sampleRate).toInt().coerceIn(segStartSample + 1, totalSamples)
+                val baseFreq = if (profile.pitch > 1.2f) 280.0 else if (profile.pitch < 0.85f) 130.0 else 190.0
+                val segSamples = segEndSample - segStartSample
+                for (i in 0 until segSamples) {
+                    val t = i.toDouble() / sampleRate
+                    val formantMod = 0.5 * Math.sin(2.0 * Math.PI * 4.0 * t) + 1.0
+                    val signal = Math.sin(2.0 * Math.PI * baseFreq * t) +
+                            0.4 * Math.sin(2.0 * Math.PI * (baseFreq * 2.1) * t) +
+                            0.2 * Math.sin(2.0 * Math.PI * (baseFreq * 3.2) * t)
+                    val envelope = Math.sin(Math.PI * (i.toDouble() / segSamples)).coerceAtLeast(0.0)
+                    val sampleValue = (signal * 6000.0 * envelope * formantMod).toInt().coerceIn(-32767, 32767).toShort()
+                    
+                    val bufIdx = (segStartSample + i) * 2
+                    if (bufIdx + 1 < pcmBuffer.size) {
+                        val curSample = (pcmBuffer[bufIdx].toInt() and 0xFF) or (pcmBuffer[bufIdx + 1].toInt() shl 8)
+                        val mixedInt = curSample.toShort().toInt() + sampleValue.toInt()
+                        val clippedShort = mixedInt.coerceIn(-32767, 32767).toShort()
+                        pcmBuffer[bufIdx] = (clippedShort.toInt() and 0xFF).toByte()
+                        pcmBuffer[bufIdx + 1] = ((clippedShort.toInt() shr 8) and 0xFF).toByte()
+                    }
+                }
+            }
+        }
+
+        outputFile.parentFile?.mkdirs()
+        FileOutputStream(outputFile).use { out ->
+            writeWavHeader(out, pcmBuffer.size, sampleRate, 1, 16)
+            out.write(pcmBuffer)
+        }
+        Log.i(tag, "Synthesized multi-speaker timeline WAV: ${outputFile.absolutePath} (${outputFile.length()} bytes)")
         outputFile
     }
 

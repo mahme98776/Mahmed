@@ -56,6 +56,13 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- Alexa & Gemini Silent Background Wake-Word Engine -->
+        <service
+            android:name="com.example.audio.assistant.AlexaBackgroundWakeWordService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
     </application>
 
 </manifest>

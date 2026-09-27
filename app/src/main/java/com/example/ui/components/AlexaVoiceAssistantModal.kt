@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
@@ -49,10 +51,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -122,6 +128,7 @@ fun AlexaVoiceAssistantModal(
     val lastParsedCommand by assistantEngine.lastParsedCommand.collectAsStateWithLifecycle()
     val isVoiceFeedbackEnabled by assistantEngine.isVoiceFeedbackEnabled.collectAsStateWithLifecycle()
     val isContinuousWakeWordListening by assistantEngine.isContinuousWakeWordListening.collectAsStateWithLifecycle()
+    var manualTextQuery by remember { mutableStateOf("") }
 
     val isListening = assistantState is AlexaAssistantState.Listening || isContinuousWakeWordListening
 
@@ -332,21 +339,157 @@ fun AlexaVoiceAssistantModal(
 
                 Spacer(Modifier.height(10.dp))
 
-                // Status Indicator
-                Text(
-                    text = when (assistantState) {
-                        is AlexaAssistantState.Listening -> "🔴 أستمع إليك الآن... تفضل بالأمر الصوتي"
-                        is AlexaAssistantState.Thinking -> "⏳ جارٍ التحليل وتصحيح نبرة الأمر..."
-                        is AlexaAssistantState.Executing -> "⚡ تنفيذ: ${(assistantState as AlexaAssistantState.Executing).commandTitleArabic}"
-                        is AlexaAssistantState.Speaking -> "🗣️ الرد الصوتي نشط..."
-                        is AlexaAssistantState.Error -> "⚠️ ${(assistantState as AlexaAssistantState.Error).errorMessageArabic}"
-                        is AlexaAssistantState.Idle -> "اضغط على الدائرة للبدء بالأمر الصوتي"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isListening) Color(0xFF00B0FF) else MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center
-                )
+                // Status Indicator or Error Recovery Banner
+                if (assistantState is AlexaAssistantState.Error) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = (assistantState as AlexaAssistantState.Error).errorMessageArabic,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Button(
+                                onClick = { assistantEngine.resetErrorState() },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("إعادة المحاولة", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = when (assistantState) {
+                            is AlexaAssistantState.Listening -> "🔴 أستمع إليك الآن... تفضل بالأمر الصوتي"
+                            is AlexaAssistantState.Thinking -> "⏳ جارٍ التحليل وتصحيح نبرة الأمر..."
+                            is AlexaAssistantState.Executing -> "⚡ تنفيذ: ${(assistantState as AlexaAssistantState.Executing).commandTitleArabic}"
+                            is AlexaAssistantState.Speaking -> "🗣️ الرد الصوتي نشط..."
+                            is AlexaAssistantState.Idle -> "اضغط على الدائرة للتحدث أو اكتب أمرك بالأسفل 👇"
+                            else -> "المساعد جاهز للاستماع إليك"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isListening) Color(0xFF00B0FF) else MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Direct Text Command Input (Fallback & Accessibility)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = manualTextQuery,
+                        onValueChange = { manualTextQuery = it },
+                        placeholder = { Text("اكتب أي أمر هنا للمساعد...", fontSize = 12.sp) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            if (manualTextQuery.isNotBlank()) {
+                                assistantEngine.submitTextCommand(manualTextQuery, viewModel) { handleNavigation(it) }
+                                manualTextQuery = ""
+                            }
+                        },
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = "تنفيذ الأمر", tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                }
+
+                // Quick Action Suggestion Chips
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Surface(
+                        onClick = { assistantEngine.submitTextCommand("دبلج المشهد بضغطة زر", viewModel) { handleNavigation(it) } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "دبلجة 🚀",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+
+                    Surface(
+                        onClick = { assistantEngine.submitTextCommand("استنسخي صوت الممثل", viewModel) { handleNavigation(it) } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "استنساخ 🧬",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+
+                    Surface(
+                        onClick = { assistantEngine.submitTextCommand("افصلي التراكات الصوتية", viewModel) { handleNavigation(it) } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "فصل التراكات 🎧",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+
+                    Surface(
+                        onClick = { assistantEngine.submitTextCommand("مقطع ريلز للتريند", viewModel) { handleNavigation(it) } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "ريلز وتريند 📱",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+                }
 
                 // Live Transcription & Alexa Error-Correction Card
                 if (lastTranscript.isNotBlank() || lastParsedCommand != null) {
@@ -558,6 +701,7 @@ fun AlexaVoiceAssistantModal(
                                         viewModel = viewModel,
                                         onNavigate = { handleNavigation(it) }
                                     )
+                                    com.example.audio.assistant.AlexaBackgroundWakeWordService.start(context)
                                 } else {
                                     recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 }
@@ -568,6 +712,7 @@ fun AlexaVoiceAssistantModal(
                                     viewModel = viewModel,
                                     onNavigate = { handleNavigation(it) }
                                 )
+                                com.example.audio.assistant.AlexaBackgroundWakeWordService.stop(context)
                             }
                         },
                         colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00E5FF))

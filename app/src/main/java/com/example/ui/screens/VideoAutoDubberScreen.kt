@@ -128,6 +128,7 @@ import com.example.ui.SplitCompareViewMode
 import com.example.ui.components.IntegratedVideoPlayerComponent
 import com.example.ui.components.SplitScreenPreviewCompareComponent
 import com.example.ui.components.VideoCanvasPlayer
+import com.example.ui.components.HollywoodProductionSuiteSection
 import com.example.ui.components.VolumeMixerCard
 import kotlinx.coroutines.launch
 
@@ -368,6 +369,11 @@ fun VideoAutoDubberScreen(
                     )
                 }
             }
+        }
+
+        // Hollywood Studio Autonomous Master Suite
+        item {
+            HollywoodProductionSuiteSection(viewModel = viewModel)
         }
 
         // 2. Video Import Area / File Selector
