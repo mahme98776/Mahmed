@@ -86,6 +86,7 @@ enum class AlexaVoiceIntent(val titleArabic: String, val iconEmoji: String) {
     UNDO_ACTION("التراجع عن آخر تعديل ↩️", "↩️"),
     REDO_ACTION("إعادة تطبيق التعديل 🔁", "🔁"),
     DEVELOPER_COPYRIGHT_QUERY("الاستعلام عن المطور وحقوق الملكية 👤", "🛡️"),
+    ASSIST_BLIND_READ_STATUS("قراءة الشاشة ومساعدة المكفوفين 👁️", "👁️"),
     CONVERSATIONAL_QUESTION("محادثة ذكاء اصطناعي تفاعلية 💡", "✨"),
     UNKNOWN("أمر غير محدد ❓", "❓")
 }
@@ -212,8 +213,28 @@ class AlexaVoiceAssistantEngine(
         }
     }
 
+    fun triggerHapticFeedback(durationMs: Long = 40L) {
+        try {
+            val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager
+                vm?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            }
+            if (vibrator?.hasVibrator() == true) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(durationMs)
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
     /**
-     * Start listening for voice commands (Alexa / Gemini style)
+     * Start listening for voice commands (Alexa / Gemini style) with multi-language & accessibility support.
      */
     fun startListening(
         scope: CoroutineScope,
@@ -229,20 +250,31 @@ class AlexaVoiceAssistantEngine(
 
         val recognizer = speechRecognizer
         if (recognizer == null) {
-            _assistantState.value = AlexaAssistantState.Error("خدمة التعرف على الصوت غير مفعلة بالجهاز")
+            _assistantState.value = AlexaAssistantState.Listening
+            executionScope?.launch(Dispatchers.Main) {
+                delay(3000)
+                if (_assistantState.value is AlexaAssistantState.Listening) {
+                    _assistantState.value = AlexaAssistantState.Idle
+                }
+            }
             return
         }
 
         try {
+            val deviceLocale = Locale.getDefault()
+            val primaryLangTag = if (deviceLocale.language.isNotBlank()) deviceLocale.toLanguageTag() else "ar-SA"
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, primaryLangTag)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, deviceLocale.language.ifEmpty { "ar" })
+                // Multi-language hints for Google Speech Recognizer
+                putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("ar-SA", "en-US", "fr-FR", "es-ES", "de-DE"))
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             }
 
+            triggerHapticFeedback(45L)
             _assistantState.value = AlexaAssistantState.Listening
             isListeningSessionActive = true
             recognizer.startListening(intent)
@@ -306,26 +338,17 @@ class AlexaVoiceAssistantEngine(
             isListeningSessionActive = false
             consecutiveErrorCount++
 
-            if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                // Graceful idle reset without aggressive error alerts
-                _assistantState.value = AlexaAssistantState.Idle
-            } else {
-                val msg = when (error) {
-                    SpeechRecognizer.ERROR_AUDIO -> "جاهز للاستماع، تحدث بوضوح 🎙️"
-                    SpeechRecognizer.ERROR_CLIENT -> "المساعد في وضع الاستعداد 🎙️"
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "يرجى منح إذن الميكروفون"
-                    SpeechRecognizer.ERROR_NETWORK -> "المساعد الصوتي المحلي جاهز"
-                    else -> "المساعد جاهز للاستماع"
-                }
-                _assistantState.value = AlexaAssistantState.Error(msg)
-
-                // Auto-recover back to Idle after 1.8 seconds so it NEVER gets stuck in an error state
+            if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                _assistantState.value = AlexaAssistantState.Error("يرجى منح إذن الميكروفون للاستماع 🎙️")
                 executionScope?.launch(Dispatchers.Main) {
-                    delay(1800)
+                    delay(2500)
                     if (_assistantState.value is AlexaAssistantState.Error) {
                         _assistantState.value = AlexaAssistantState.Idle
                     }
                 }
+            } else {
+                // Graceful idle reset without aggressive error alerts
+                _assistantState.value = AlexaAssistantState.Idle
             }
 
             // If error is client or busy, re-init recognizer cleanly
@@ -423,6 +446,13 @@ class AlexaVoiceAssistantEngine(
             ttsManager.speakText(parsed.responseSpeechArabic, utteranceId = "alexa_assistant_response")
             _assistantState.value = AlexaAssistantState.Speaking(parsed.responseSpeechArabic)
         }
+
+        // Auto-execute parsed command immediately
+        val vm = activeViewModel
+        val nav = activeNavigationCallback
+        if (vm != null && nav != null && parsed.detectedIntent != AlexaVoiceIntent.UNKNOWN) {
+            executeParsedCommand(parsed, vm, nav)
+        }
     }
 
     /**
@@ -434,7 +464,39 @@ class AlexaVoiceAssistantEngine(
         onNavigate: (String) -> Unit
     ) {
         executionScope?.launch(Dispatchers.Main) {
+            triggerHapticFeedback(50L)
             when (command.detectedIntent) {
+                AlexaVoiceIntent.ASSIST_BLIND_READ_STATUS -> {
+                    triggerHapticFeedback(80L)
+                    val studioState = viewModel.uiState.value
+                    val clipName = studioState.currentClip.title
+                    val hasRecordedTake = studioState.recordedAudioPath != null && File(studioState.recordedAudioPath).exists()
+                    val dubVol = (studioState.dubVolume * 100).toInt()
+                    val origVol = (studioState.originalVolume * 100).toInt()
+                    val isEnglish = Locale.getDefault().language.equals("en", ignoreCase = true)
+                    val readout = if (isEnglish) {
+                        buildString {
+                            append("Hello! Alexa Accessibility Assistant is active. ")
+                            append("Current studio scene: $clipName. ")
+                            if (hasRecordedTake) append("You have a recorded audio take ready. ")
+                            else append("No audio recorded yet. You can say 'Record' to start. ")
+                            append("Dubbing volume is $dubVol percent. Original volume is $origVol percent. ")
+                            append("You can speak any command: Record, Play, Auto Dub, Clean Audio, or Open any app on your phone.")
+                        }
+                    } else {
+                        buildString {
+                            append("مرحباً بك في المساعد الصوتي فويس ماستر برو لمساعدة المكفوفين. ")
+                            append("المشهد الحالي في الاستوديو: $clipName. ")
+                            if (hasRecordedTake) append("يوجد مقطع صوتي مسجل ومتاح للمعالجة والمزامنة. ")
+                            else append("لا يوجد تسجيل بعد، يمكنك قول: ابدأ التسجيل. ")
+                            append("مستوى صوت الدبلجة $dubVol بالمئة، وصوت الفيديو $origVol بالمئة. ")
+                            append("يمكنك أن تطلب مني بالصوت: سجل، شغل، دبلج، نظف الصوت، ترجم السيناريو، أو افتح أي تطبيق على هاتفك.")
+                        }
+                    }
+                    _assistantState.value = AlexaAssistantState.Speaking(readout)
+                    ttsManager.speakText(readout, utteranceId = "alexa_blind_status")
+                    viewModel.showToast(readout.take(85) + "...")
+                }
                 AlexaVoiceIntent.START_RECORDING -> {
                     viewModel.startRecordingCountdown()
                 }
@@ -711,8 +773,22 @@ class AlexaVoiceAssistantEngine(
             )
         }
 
+        // 1.5 Blind & Accessibility Screen Reader Query (دعم المكفوفين وقراءة الشاشة)
+        if (containsAny(processedText, listOf(
+            "اين انا", "أين أنا", "اقرا الشاشة", "اقرأ الشاشة", "حالة الشاشة", "مساعدة المكفوفين", "وضع المكفوفين", "قراءة الوضع", "معلومات الشاشة",
+            "where am i", "read screen", "screen status", "assist me", "help blind", "accessibility", "blind mode", "status", "ou suis je", "donde estoy"
+        ))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.ASSIST_BLIND_READ_STATUS,
+                effectType = null,
+                navTarget = null,
+                responseArabic = "المساعد الصوتي وميزة مساعدة المكفوفين جاهزة. أقرأ لك حالة الاستوديو الآن.",
+                wasAutoCorrected = false
+            )
+        }
+
         // 2. Media3 AI Noise Reduction & Gain Normalization
-        if (containsAny(text, listOf("نظف الصوت", "شيل الضوضاء", "شيل الوشه", "عزل الضوضاء", "وازن الصوت", "ميديا 3", "ميديا ثري", "media3", "تنقيه الصوت", "تصفيه الصوت", "ازاله التشويش"))) {
+        if (containsAny(text, listOf("نظف الصوت", "شيل الضوضاء", "شيل الوشه", "عزل الضوضاء", "وازن الصوت", "ميديا 3", "ميديا ثري", "media3", "تنقيه الصوت", "تصفيه الصوت", "ازاله التشويش", "clean audio", "denoise", "noise reduction", "remove noise"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.MEDIA3_AI_CLEAN,
                 effectType = null,
@@ -723,7 +799,7 @@ class AlexaVoiceAssistantEngine(
         }
 
         // 3. Start Recording
-        if (containsAny(text, listOf("سجل", "سجلي", "سجل صوتي", "ابدا التسجيل", "ابدئي التسجيل", "ريكورد", "تسجيل الان", "تسجيل صوت", "يلا نسجل"))) {
+        if (containsAny(text, listOf("سجل", "سجلي", "سجل صوتي", "ابدا التسجيل", "ابدئي التسجيل", "ريكورد", "تسجيل الان", "تسجيل صوت", "يلا نسجل", "record", "start recording", "record audio", "record voice"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.START_RECORDING,
                 effectType = null,
@@ -734,7 +810,7 @@ class AlexaVoiceAssistantEngine(
         }
 
         // 4. Stop Recording
-        if (containsAny(text, listOf("وقف التسجيل", "ايقاف التسجيل", "خلصت", "كفايه", "كفايه تسجيل", "انهاء التسجيل", "ستوب تسجيل", "وقف المايك"))) {
+        if (containsAny(text, listOf("وقف التسجيل", "ايقاف التسجيل", "خلصت", "كفايه", "كفايه تسجيل", "انهاء التسجيل", "ستوب تسجيل", "وقف المايك", "stop recording", "finish recording", "stop mic", "done recording"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.STOP_RECORDING,
                 effectType = null,
@@ -745,7 +821,7 @@ class AlexaVoiceAssistantEngine(
         }
 
         // 5. Playback
-        if (containsAny(text, listOf("شغل الصوت", "شغل التسجيل", "اسمع الصوت", "اسمعني", "شغلني", "تشغيل المقطع", "بلاي", "اسمع المقطع"))) {
+        if (containsAny(text, listOf("شغل الصوت", "شغل التسجيل", "اسمع الصوت", "اسمعني", "شغلني", "تشغيل المقطع", "بلاي", "اسمع المقطع", "play", "play audio", "play video", "start playback", "resume"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.PLAY_AUDIO,
                 effectType = null,
@@ -756,7 +832,7 @@ class AlexaVoiceAssistantEngine(
         }
 
         // 6. Stop Playback
-        if (containsAny(processedText, listOf("وقف الصوت", "اسكت", "ايقاف التشغيل", "كفايه صوت", "صامت", "ميوت"))) {
+        if (containsAny(processedText, listOf("وقف الصوت", "اسكت", "ايقاف التشغيل", "كفايه صوت", "صامت", "ميوت", "stop", "pause", "pause playback", "stop playback", "halt"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.STOP_PLAYBACK,
                 responseArabic = "تم إيقاف تشغيل الصوت.",
@@ -799,7 +875,7 @@ class AlexaVoiceAssistantEngine(
         }
 
         // Volume Controls
-        if (containsAny(processedText, listOf("ارفع صوت الدبلجة", "علي صوت الدبلجة", "زود الدبلجة", "ارفع الدبلجة"))) {
+        if (containsAny(processedText, listOf("ارفع صوت الدبلجة", "علي صوت الدبلجة", "زود الدبلجة", "ارفع الدبلجة", "volume up", "louder", "raise volume", "dubbing volume up"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.SET_DUB_VOLUME,
                 volumeValue = 1.0f,
@@ -807,7 +883,7 @@ class AlexaVoiceAssistantEngine(
                 wasAutoCorrected = true
             )
         }
-        if (containsAny(processedText, listOf("وطي صوت الدبلجة", "اخفض صوت الدبلجة", "قلل الدبلجة", "وطي الدبلجة"))) {
+        if (containsAny(processedText, listOf("وطي صوت الدبلجة", "اخفض صوت الدبلجة", "قلل الدبلجة", "وطي الدبلجة", "volume down", "quieter", "lower volume", "dubbing volume down"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.SET_DUB_VOLUME,
                 volumeValue = 0.45f,
@@ -815,7 +891,7 @@ class AlexaVoiceAssistantEngine(
                 wasAutoCorrected = true
             )
         }
-        if (containsAny(processedText, listOf("ارفع صوت الفيديو", "علي صوت المشهد", "ارفع المشهد الأصلي", "علي صوت الفيديو"))) {
+        if (containsAny(processedText, listOf("ارفع صوت الفيديو", "علي صوت المشهد", "ارفع المشهد الأصلي", "علي صوت الفيديو", "original volume up", "video louder"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.SET_ORIGINAL_VOLUME,
                 volumeValue = 0.8f,
@@ -823,7 +899,7 @@ class AlexaVoiceAssistantEngine(
                 wasAutoCorrected = true
             )
         }
-        if (containsAny(processedText, listOf("وطي صوت الفيديو", "اخفض صوت المشهد", "وطي المشهد الأصلي", "اخفض صوت الفيديو"))) {
+        if (containsAny(processedText, listOf("وطي صوت الفيديو", "اخفض صوت المشهد", "وطي المشهد الأصلي", "اخفض صوت الفيديو", "original volume down", "video quieter"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.SET_ORIGINAL_VOLUME,
                 volumeValue = 0.15f,
@@ -831,7 +907,7 @@ class AlexaVoiceAssistantEngine(
                 wasAutoCorrected = true
             )
         }
-        if (containsAny(processedText, listOf("ارفع الموسيقى", "علي المزيكا", "ارفع صوت الموسيقى", "زود الموسيقى"))) {
+        if (containsAny(processedText, listOf("ارفع الموسيقى", "علي المزيكا", "ارفع صوت الموسيقى", "زود الموسيقى", "music louder", "bgm up"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.SET_BGM_VOLUME,
                 volumeValue = 0.7f,
@@ -839,7 +915,7 @@ class AlexaVoiceAssistantEngine(
                 wasAutoCorrected = true
             )
         }
-        if (containsAny(processedText, listOf("وطي الموسيقى", "اخفض المزيكا", "وطي صوت الموسيقى", "قلل الموسيقى"))) {
+        if (containsAny(processedText, listOf("وطي الموسيقى", "اخفض المزيكا", "وطي صوت الموسيقى", "قلل الموسيقى", "music quieter", "bgm down"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.SET_BGM_VOLUME,
                 volumeValue = 0.15f,
@@ -849,7 +925,7 @@ class AlexaVoiceAssistantEngine(
         }
 
         // Mute / Unmute
-        if (containsAny(processedText, listOf("اكتم صوت الفيديو", "كتم المشهد الأصلي", "شغل صوت الفيديو", "صامت الفيديو", "فك كتم الفيديو"))) {
+        if (containsAny(processedText, listOf("اكتم صوت الفيديو", "كتم المشهد الأصلي", "شغل صوت الفيديو", "صامت الفيديو", "فك كتم الفيديو", "mute", "unmute", "mute audio", "unmute audio", "mute video", "unmute video"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.MUTE_UNMUTE_ORIGINAL,
                 responseArabic = "تم تبديل حالة كتم صوت الفيديو الأصلي 🔇",
@@ -1074,10 +1150,13 @@ class AlexaVoiceAssistantEngine(
                 wasAutoCorrected = true
             )
         }
-        if (containsAny(processedText, listOf("دبلجه تلقائيه", "دبلج الفيديو", "دبلجه بضغطه", "دبلج المشهد", "auto dub"))) {
+        if (containsAny(processedText, listOf(
+            "دبلجه تلقائيه", "دبلج الفيديو", "دبلجه بضغطه", "دبلج المشهد", "دبلج وادمج", "ادمج الدبلجه", "دبلج بدون نصوص", "دبلجه ودمج", "ادمج الفيديو",
+            "auto dub", "dub", "dubbing", "dub video", "auto dub and merge", "dub and merge", "merge dubbed video", "dub without text"
+        ))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.ONE_CLICK_AUTO_DUB,
-                responseArabic = "بدأت عملية الدبلجة الكاملة للفيديو آلياً بضغطة زر واحدة 🚀",
+                responseArabic = "بدأت عملية الدبلجة الذكية وتوليد الأصوات ودمجها مع الفيديو تلقائياً بالكامل بدون أي نصوص يدوية 🚀🎬",
                 wasAutoCorrected = true
             )
         }
@@ -1183,7 +1262,7 @@ class AlexaVoiceAssistantEngine(
                 wasAutoCorrected = true
             )
         }
-        if (containsAny(processedText, listOf("صدر الفيديو", "تصدير الفيديو", "احفظ الفيديو المدمج", "شارك الفيديو", "تصدير ومشاركة", "تصدير مشروعي"))) {
+        if (containsAny(processedText, listOf("صدر الفيديو", "تصدير الفيديو", "احفظ الفيديو المدمج", "شارك الفيديو", "تصدير ومشاركة", "تصدير مشروعي", "export", "export video", "save video", "share video"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.OPEN_EXPORT_DIALOG,
                 responseArabic = "جارٍ فتح نافذة تصدير وحفظ الفيديو ومشاركته بجودة عالية 🎬",
@@ -1347,6 +1426,7 @@ class AlexaVoiceAssistantEngine(
             AlexaVoiceIntent.UNDO_ACTION -> "التراجع عن التعديل"
             AlexaVoiceIntent.REDO_ACTION -> "إعادة تطبيق التعديل"
             AlexaVoiceIntent.DEVELOPER_COPYRIGHT_QUERY -> "الاستعلام عن مطور التطبيق وحقوق الملكية"
+            AlexaVoiceIntent.ASSIST_BLIND_READ_STATUS -> "قراءة الشاشة ومساعدة المكفوفين"
             else -> "أمر صوتي"
         }
     }

@@ -135,8 +135,8 @@ data class VideoExportConfig(
     val bitratePreset: VideoBitratePreset = VideoBitratePreset.HIGH,
     val frameRatePreset: FrameRatePreset = FrameRatePreset.FPS_30,
     val audioQuality: AudioQualityPreset = AudioQualityPreset.HIGH,
-    val burnSubtitles: Boolean = true,
-    val showWaveform: Boolean = true,
+    val burnSubtitles: Boolean = false,
+    val showWaveform: Boolean = false,
     val includeOriginalAudioDuck: Boolean = true,
     val customBitrateMbps: Float? = null
 ) {

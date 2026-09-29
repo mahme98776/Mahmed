@@ -127,7 +127,7 @@ fun IntegratedVideoPlayerComponent(
 ) {
     val duration = (clip.durationSeconds.toFloat()).coerceAtLeast(1f)
     var showTransparencyDialog by remember { mutableStateOf(false) }
-    var showSubtitleOverlay by remember { mutableStateOf(true) }
+    var showSubtitleOverlay by remember { mutableStateOf(false) }
     var isLooping by remember { mutableStateOf(false) }
     var playbackSpeed by remember { mutableStateOf(1.0f) }
     var isFullscreenExpanded by remember { mutableStateOf(false) }

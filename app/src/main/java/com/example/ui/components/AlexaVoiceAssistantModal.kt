@@ -433,7 +433,7 @@ fun AlexaVoiceAssistantModal(
                     Surface(
                         onClick = { assistantEngine.submitTextCommand("دبلج المشهد بضغطة زر", viewModel) { handleNavigation(it) } },
                         shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
@@ -446,9 +446,76 @@ fun AlexaVoiceAssistantModal(
                     }
 
                     Surface(
+                        onClick = { assistantEngine.submitTextCommand("ترجم السيناريو للعربية", viewModel) { handleNavigation(it) } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "ترجمة 🌐",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+
+                    Surface(
+                        onClick = { assistantEngine.submitTextCommand("نقي الصوت وموازنة", viewModel) { handleNavigation(it) } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.8f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "تنقية 🎙️",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+
+                    Surface(
+                        onClick = { assistantEngine.submitTextCommand("صدري الفيديو النهائي", viewModel) { handleNavigation(it) } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "تصدير 💾",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Surface(
+                        onClick = { assistantEngine.submitTextCommand("شغلي المشهد", viewModel) { handleNavigation(it) } },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "تشغيل ▶️",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 5.dp)
+                        )
+                    }
+
+                    Surface(
                         onClick = { assistantEngine.submitTextCommand("استنسخي صوت الممثل", viewModel) { handleNavigation(it) } },
                         shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
@@ -456,14 +523,14 @@ fun AlexaVoiceAssistantModal(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 6.dp)
+                            modifier = Modifier.padding(vertical = 5.dp)
                         )
                     }
 
                     Surface(
                         onClick = { assistantEngine.submitTextCommand("افصلي التراكات الصوتية", viewModel) { handleNavigation(it) } },
                         shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
@@ -471,14 +538,14 @@ fun AlexaVoiceAssistantModal(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 6.dp)
+                            modifier = Modifier.padding(vertical = 5.dp)
                         )
                     }
 
                     Surface(
                         onClick = { assistantEngine.submitTextCommand("مقطع ريلز للتريند", viewModel) { handleNavigation(it) } },
                         shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
@@ -486,7 +553,7 @@ fun AlexaVoiceAssistantModal(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 6.dp)
+                            modifier = Modifier.padding(vertical = 5.dp)
                         )
                     }
                 }

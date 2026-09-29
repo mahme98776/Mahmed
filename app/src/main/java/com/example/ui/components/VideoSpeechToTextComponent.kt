@@ -65,6 +65,7 @@ fun VideoSpeechToTextComponent(
     var editingSegment by remember { mutableStateOf<VideoAudioTranscriptionSegment?>(null) }
     var showAddManualDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showDiagnosticsLogs by remember { mutableStateOf(false) }
 
     // Filter segments based on search query and speaker filter
     val filteredSegments = remember(sttState.segments, sttState.searchQuery, sttState.speakerFilter) {
@@ -323,6 +324,164 @@ fun VideoSpeechToTextComponent(
                         color = Color(0xFF6366F1),
                         fontWeight = FontWeight.Medium
                     )
+                }
+            }
+
+            // Diagnostics & Telemetry Inspection Panel
+            if (sttState.result != null) {
+                Spacer(Modifier.height(10.dp))
+                val result = sttState.result!!
+                val isSuccess = result.isFromLiveGeminiApi
+                val isFallback = result.isFallbackUsed
+                val statusBg = if (isSuccess) Color(0xFF10B981) else if (isFallback) Color(0xFFF59E0B) else Color(0xFFEF4444)
+                val badgeText = if (isSuccess) "سحابة Gemini متصلة بنجاح 🟢 (HTTP ${result.httpStatusCode ?: 200})"
+                                else if (isFallback) "الدبلجة الاحتياطية على الجهاز نشطة 📱"
+                                else "تنبيه تشخيص الاتصال ⚠️"
+
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = statusBg.copy(alpha = 0.08f)),
+                    border = BorderStroke(1.dp, statusBg.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showDiagnosticsLogs = !showDiagnosticsLogs }
+                        .testTag("gemini_diagnostics_card")
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(statusBg, CircleShape)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = badgeText,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (showDiagnosticsLogs) "إخفاء السجلات 🔼" else "عرض التشخيص 🔽",
+                                    fontSize = 11.sp,
+                                    color = statusBg,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        if (!result.failureReason.isNullOrBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "ملاحظة: ${result.failureReason}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        AnimatedVisibility(visible = showDiagnosticsLogs) {
+                            Column(modifier = Modifier.padding(top = 10.dp)) {
+                                Divider(color = statusBg.copy(alpha = 0.2f))
+                                Spacer(Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "الزمن: ${result.extractionLatencyMs} ms | الحمولة: ${result.requestPayloadBytes / 1024} KB",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            val report = buildString {
+                                                appendLine("=== تقرير تشخيص Gemini API ===")
+                                                appendLine("الحالة: $badgeText")
+                                                appendLine("كود الاستجابة: ${result.httpStatusCode}")
+                                                appendLine("زمن الاتصال: ${result.extractionLatencyMs} ms")
+                                                appendLine("المقاطع: ${result.totalSpokenSegments}")
+                                                appendLine("--- سجلات التتبع ---")
+                                                result.diagnosticLogs.forEach { log ->
+                                                    appendLine("[${log.formattedTime}] [${log.level}] ${log.title} -> ${log.details}")
+                                                }
+                                            }
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("Gemini Diagnostics", report))
+                                            Toast.makeText(context, "تم نسخ تقرير التشخيص للحافظة 📋", Toast.LENGTH_SHORT).show()
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("نسخ السجل 📋", fontSize = 11.sp, color = Color(0xFF6366F1), fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Spacer(Modifier.height(6.dp))
+
+                                val logsToShow = if (result.diagnosticLogs.isNotEmpty()) result.diagnosticLogs else emptyList()
+                                if (logsToShow.isEmpty()) {
+                                    Text("لا توجد سجلات تتبع إضافية مسجلة لهذه العملية.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } else {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                            .padding(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        logsToShow.forEach { logItem ->
+                                            val logColor = when (logItem.level) {
+                                                "ERROR" -> Color(0xFFEF4444)
+                                                "WARN" -> Color(0xFFF59E0B)
+                                                "SUCCESS" -> Color(0xFF10B981)
+                                                else -> Color(0xFF3B82F6)
+                                            }
+                                            Row(verticalAlignment = Alignment.Top) {
+                                                Text(
+                                                    text = logItem.formattedTime,
+                                                    fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                                )
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    text = "[${logItem.level}]",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = logColor,
+                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                                )
+                                                Spacer(Modifier.width(6.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = logItem.title,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    if (logItem.details.isNotBlank()) {
+                                                        Text(
+                                                            text = logItem.details,
+                                                            fontSize = 10.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

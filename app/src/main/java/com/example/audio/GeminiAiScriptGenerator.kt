@@ -135,9 +135,9 @@ class GeminiAiScriptGenerator(private val context: Context) {
                 }
                 appendLine()
                 appendLine("### DUBBING CRAFT REQUIREMENTS:")
-                appendLine("1. Natural Lip-Sync: Syllable counts and phrase lengths MUST match the character's speaking window.")
-                appendLine("2. Emotion & Tonality: Inject profound theatrical depth, heroism, wit, or intimacy matching the scene mood.")
-                appendLine("3. Dialect Accuracy: Strictly follow the selected dialect vocabulary, phrasing, and idioms.")
+                appendLine("1. Faithful & Direct Translation: Translate the exact meaning of the original dialogue accurately, truthfully, and authentically into fluent, pure Arabic. Do NOT alter the meaning, do NOT add unsolicited slang, and do NOT insert unnecessary comedy or invented lines.")
+                appendLine("2. Natural Lip-Sync & Timing: Syllable counts and phrase lengths MUST match the character's speaking window and mouth movements.")
+                appendLine("3. Authentic Dialogue Fidelity: Respect the drama, tone, and character personality exactly as in the original scene, matching high-end cinematic movie dubbing standards.")
                 appendLine("4. Distinct Characters: Distribute lines across appropriate voice types (e.g. HERO_MALE, HEROINE_FEMALE, EPIC_NARRATOR, DRAMATIC, ARABIC_MALE, ARABIC_FEMALE).")
                 appendLine()
                 appendLine("Return a strict JSON array of dialogue script items according to this structure:")

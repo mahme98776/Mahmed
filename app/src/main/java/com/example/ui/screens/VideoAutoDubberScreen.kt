@@ -118,6 +118,7 @@ import com.example.audio.tts.CloudTtsProvider
 import com.example.audio.tts.CloudVoiceCatalog
 import androidx.compose.material.icons.filled.GraphicEq
 import com.example.ui.components.CloudTtsConfigDialog
+import com.example.ui.components.AutoDubVoiceProfileSelector
 import com.example.ui.components.ExportProjectDialog
 import com.example.ui.components.ShareDubbingOptionsDialog
 import androidx.compose.material.icons.filled.Save
@@ -162,6 +163,8 @@ fun VideoAutoDubberScreen(
 
     val vattState by viewModel.vattState.collectAsState()
     val cloudTtsConfig by viewModel.cloudTtsConfig.collectAsState()
+    val currentlyPreviewingVoiceId by viewModel.currentlyPreviewingVoiceId.collectAsState()
+    val isSpeaking by viewModel.ttsManager.isSpeaking.collectAsState()
 
     // Video File Picker Launcher
     val videoPickerLauncher = rememberLauncherForActivityResult(
@@ -1225,113 +1228,27 @@ fun VideoAutoDubberScreen(
             }
         }
 
-        // 4. TTS Engine & Natural Human Voices (ElevenLabs / Google Cloud / On-Device)
+        // 4. AI-Generated Voice Profiles Preview & Selection (معاينة واختيار البصمات الصوتية للدبلجة)
         item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("tts_engine_config_card"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(
-                    1.dp,
-                    if (cloudTtsConfig.isEnabled && cloudTtsConfig.provider != CloudTtsProvider.DEVICE_TTS)
-                        Color(0xFF6366F1).copy(alpha = 0.6f)
-                    else
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = Color(0xFF6366F1).copy(alpha = 0.15f),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(cloudTtsConfig.provider.iconEmoji, fontSize = 18.sp)
-                                }
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "4. محرك الصوت البشري (TTS)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = cloudTtsConfig.provider.titleArabic,
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF6366F1),
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-
-                        Button(
-                            onClick = { showCloudTtsDialog = true },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF6366F1).copy(alpha = 0.15f),
-                                contentColor = Color(0xFF6366F1)
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("open_tts_config_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("تعديل المحرك", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    val activeVoiceLabel = when (cloudTtsConfig.provider) {
-                        CloudTtsProvider.ELEVEN_LABS -> {
-                            val v = CloudVoiceCatalog.elevenLabsVoices.find { it.id == cloudTtsConfig.elevenLabsVoiceId }
-                            "صوت ElevenLabs: ${v?.name ?: cloudTtsConfig.elevenLabsVoiceId} (نموذج Multilingual v2)"
-                        }
-                        CloudTtsProvider.GOOGLE_CLOUD_TTS -> {
-                            val v = CloudVoiceCatalog.googleCloudVoices.find { it.id == cloudTtsConfig.googleCloudVoiceName }
-                            "صوت Google Cloud: ${v?.name ?: cloudTtsConfig.googleCloudVoiceName}"
-                        }
-                        CloudTtsProvider.DEVICE_TTS -> "محرك الهاتف المحلي الفصيح (يعمل بالكامل بدون إنترنت)"
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = Color(0xFF6366F1),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = activeVoiceLabel,
-                                fontSize = 11.5.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+            AutoDubVoiceProfileSelector(
+                voiceProfiles = viewModel.ttsManager.voiceProfiles,
+                selectedVoiceId = autoDubState.selectedVoiceProfileId,
+                currentlyPreviewingId = currentlyPreviewingVoiceId,
+                isSpeaking = isSpeaking,
+                cloudTtsConfig = cloudTtsConfig,
+                onSelectVoice = { profileId ->
+                    viewModel.setSelectedAutoDubVoiceProfileId(profileId)
+                },
+                onPreviewVoice = { profile ->
+                    viewModel.previewVoiceProfile(profile)
+                },
+                onStopPreview = {
+                    viewModel.stopVoiceProfilePreview()
+                },
+                onOpenCloudTtsSettings = {
+                    showCloudTtsDialog = true
                 }
-            }
+            )
         }
 
         // 5. Action Button: Start Auto Dubbing

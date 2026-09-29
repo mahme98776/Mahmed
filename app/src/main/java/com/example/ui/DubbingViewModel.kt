@@ -1055,7 +1055,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                 _videoSpeechToTextState.value = _videoSpeechToTextState.value.copy(
                     isTranscribing = false,
                     progressFraction = 1.0f,
-                    statusMessage = "اكتمل تفريغ ${result.segments.size} مقطع كلامي مع التوقيتات!",
+                    statusMessage = if (result.isFallbackUsed) "تم تشغيل الدبلجة الاحتياطية (${result.segments.size} مقطعاً) 📱" else "اكتمل تفريغ ${result.segments.size} مقطع كلامي مع التوقيتات!",
                     result = result,
                     segments = result.segments,
                     selectedSegmentId = result.segments.firstOrNull()?.id
@@ -1074,7 +1074,10 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                     }
                     _uiState.value = _uiState.value.copy(
                         scriptLines = convertedLines,
-                        toastMessage = "تم تفريغ وحساب توقيتات ${result.segments.size} مقطع كلامي حقيقي بنجاح! 🎙️⏱️"
+                        toastMessage = if (result.isFallbackUsed)
+                            "تم تفعيل الدبلجة الاحتياطية وتوليد ${result.segments.size} حوارات متزامنة بنجاح! 📱✨"
+                        else
+                            "تم تفريغ وحساب توقيتات ${result.segments.size} مقطع كلامي حقيقي بنجاح! 🎙️⏱️"
                     )
                 } else if (!result.errorMessage.isNullOrBlank()) {
                     _uiState.value = _uiState.value.copy(
@@ -3562,8 +3565,75 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
         autoVideoDubber.setDuckedVolumes(originalVol, dubVol)
     }
 
+    private val _currentlyPreviewingVoiceId = MutableStateFlow<String?>(null)
+    val currentlyPreviewingVoiceId: StateFlow<String?> = _currentlyPreviewingVoiceId.asStateFlow()
+
+    fun setSelectedAutoDubVoiceProfileId(profileId: String) {
+        autoVideoDubber.setSelectedVoiceProfileId(profileId)
+        val profile = ttsManager.voiceProfiles.find { it.id == profileId }
+        val name = profile?.titleArabic ?: profileId
+        _uiState.value = _uiState.value.copy(
+            toastMessage = "تم اختيار $name كصوت رئيسي للدبلجة 🎙️✨"
+        )
+    }
+
+    fun previewVoiceProfile(profile: VoiceProfile, customSample: String? = null) {
+        if (!ttsManager.isEngineReady()) {
+            _uiState.value = _uiState.value.copy(
+                toastMessage = if (ttsManager.initState.value.state == TtsEngineState.INITIALIZING)
+                    "محرك الصوت قيد التهيئة، يرجى الانتظار ثوانٍ... ⏳"
+                else
+                    "محرك الصوت غير جاهز (${ttsManager.initState.value.errorMessage ?: "تأكد من إعدادات TTS"}) ⚠️"
+            )
+            return
+        }
+
+        if (_currentlyPreviewingVoiceId.value == profile.id && ttsManager.isSpeaking.value) {
+            stopVoiceProfilePreview()
+            return
+        }
+
+        _currentlyPreviewingVoiceId.value = profile.id
+        val textToSpeak = customSample ?: when (profile.id) {
+            "natural_arabic_male" -> "مرحباً بك! أنا القارئ الفصيح، سأقوم بدبلجة هذا المشهد بفخامة ووضوح سينمائي تام."
+            "natural_arabic_female" -> "أهلاً بك! بصوتي الناعم والدافئ، سأمنح مشهدك لمسة حوارية عذبة وطبيعية."
+            "hero_male" -> "لن أستسلم أبداً! هذا كوكبنا وسأدافع عنه بكل شجاعة وقوة حتى النهاية!"
+            "heroine_female" -> "مهما بلغت صعوبة المغامرة، سنواصل طريقنا معاً نحو الأمل والنور!"
+            "epic_narrator" -> "في قديم الزمان، ومن أعماق الأساطير، انطلقت أعظم بطولة سجّلها التاريخ."
+            "male_narrator" -> "هنا الاستوديو الوثائقي، نستمع الآن إلى هذا الصوت الإذاعي الفخم والرصين."
+            "female_soft" -> "بين ثنايا الذكريات ونسمات الأمل، تتجدد أحلامنا الحالمة مع كل صباح."
+            "cartoon_hero" -> "يا لها من مغامرة رائعة ومرحة! تعالوا نركض ونستمتع بالدبلجة معاً يا أصدقاء!"
+            "dramatic_villain" -> "لقد حانت ساعتي، ولن يتمكن أحد من إيقاف مخططي بعد اليوم!"
+            "cyber_bot" -> "نظام الذكاء الاصطناعي متصل وجاهز لتوليد دبلجة الفيديو بأقصى دقة تقنية."
+            "sports_hype" -> "هدف أسطوري لا يصدق في الدقيقة الأخيرة! يا له من أداء حماسي وتاريخي!"
+            "en_natural_male" -> "Welcome! This is the deep cinematic narration voice for documentary and film dubbing."
+            "en_natural_female" -> "Hello! Experience warm and articulate storytelling crafted for professional dubbing."
+            "en_action_hero" -> "Get ready! We are charging straight into battle, and nothing can stop us now!"
+            "en_casual_host" -> "Hey everyone! Welcome back, let's dive right into this awesome video clip today."
+            else -> "مرحباً، هذه عينة تجريبية للبصمة الصوتية المختارة لدبلجة الفيديو بالذكاء الاصطناعي."
+        }
+
+        val langCode = if (profile.languageCode == "en") "en" else autoDubberState.value.selectedLanguage.code
+        ttsManager.speakText(
+            text = textToSpeak,
+            profile = profile,
+            languageCode = langCode,
+            utteranceId = "voice_profile_preview_${profile.id}"
+        )
+    }
+
+    fun stopVoiceProfilePreview() {
+        ttsManager.stop()
+        _currentlyPreviewingVoiceId.value = null
+    }
+
     fun startAutoVideoDubbing() {
-        val video = autoDubberState.value.importedVideo
+        var video = autoDubberState.value.importedVideo
+        if (video == null) {
+            val currentClip = _uiState.value.currentClip
+            autoVideoDubber.loadDemoSampleVideo(currentClip)
+            video = autoDubberState.value.importedVideo
+        }
         val selectedDialect = autoDubberState.value.selectedDialect
         if (video != null && video.isLongVideo) {
             longFormDubbingWorker.startLongFormDubbing(
@@ -3577,22 +3647,36 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                     viewModelScope.launch {
                         applyDubbedClipToStudio(dubbedClip)
                         autoSaveDubbedProjectToDrafts(dubbedClip)
+                        startPlayback()
+                        ttsManager.speakText("تمت دبلجة ودمج الفيديو الطويل تلقائياً بنجاح، وبدأ التشغيل الآن!", utteranceId = "auto_long_dub_finished")
                         _uiState.value = _uiState.value.copy(
-                            toastMessage = "تمت دبلجة الفيديو الطويل (${video.formattedDuration}) بنجاح! 💾🎉 جاهز للمعاينة"
+                            toastMessage = "تمت دبلجة الفيديو الطويل (${video.formattedDuration}) ودمجه تلقائياً بنجاح! 💾🎉 بدأ التشغيل"
                         )
                     }
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "تنبيه: تعذر إكمال دبلجة الفيديو، يرجى إعادة المحاولة"
+                    )
                 }
             }
         } else {
             viewModelScope.launch {
                 val dubbedClip = autoVideoDubber.startAutoDubbingPipeline(
+                    customVideo = video,
                     dialect = selectedDialect
                 )
                 if (dubbedClip != null) {
                     applyDubbedClipToStudio(dubbedClip)
                     autoSaveDubbedProjectToDrafts(dubbedClip)
+                    startPlayback()
+                    ttsManager.speakText("تمت دبلجة الفيديو ودمجه تلقائياً بنجاح بدون الحاجة لكتابة أي نص، وبدأ التشغيل الآن!", utteranceId = "auto_dub_finished")
                     _uiState.value = _uiState.value.copy(
-                        toastMessage = "تمت دبلجة الفيديو وحفظ المسودة تلقائياً بنجاح! 💾🎉 جاهز للمعاينة والتصدير"
+                        toastMessage = "تمت دبلجة ودمج الفيديو تلقائياً بنجاح بدون نصوص يدوية! 🎬🎉 بدأ التشغيل الآن"
+                    )
+                } else {
+                    val err = autoDubberState.value.errorMessage ?: autoDubberState.value.statusMessage
+                    _uiState.value = _uiState.value.copy(
+                        toastMessage = "تنبيه الدبلجة: $err"
                     )
                 }
             }
