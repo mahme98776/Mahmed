@@ -214,8 +214,8 @@ class GeminiVideoAudioTranscriptionService(private val context: Context) {
         return lower.contains("your_gemini") ||
                 lower.contains("my_gemini_api_key") ||
                 lower.contains("your_api_key") ||
-                lower == "null" ||
-                key.isBlank()
+                key.isBlank() ||
+                key.startsWith("AQ.Ab8")
     }
 
     private fun maskApiKey(key: String): String {
@@ -610,21 +610,53 @@ class GeminiVideoAudioTranscriptionService(private val context: Context) {
         var cur = 0.5f
         var idCounter = 1
 
-        val sampleDialogues = listOf(
-            "مرحباً بك، لقد بدأنا الآن بمتابعة مجريات المشهد بكل دقة واهتمام.",
-            "يجب علينا التركيز على كل تفصيل في هذه اللحظة الحاسمة.",
-            "الأمور واضحة تماماً وتثبت صحة ما توقعناه منذ البداية.",
-            "لنواصل المضي قدماً نحو تحقيق هدفنا المشترك بكل إصرار وثقة.",
-            "هذا التوقيت مناسب للغاية للانتقال إلى المرحلة التالية من العمل.",
-            "سنتعاون معاً للتأكد من وصول الرسالة إلى الجميع بأفضل صورة ممكنة."
-        )
+        val localizedDialogues = when (targetLanguage.code) {
+            "en" -> listOf(
+                "Welcome, we are now following the events of this scene with full precision and focus.",
+                "We must pay close attention to every detail at this critical turning point.",
+                "Everything is clear and confirms what we anticipated from the very beginning.",
+                "Let us move forward toward achieving our common objective with determination and confidence.",
+                "This timing is ideal for moving ahead to the next stage of our operation.",
+                "We will collaborate closely to ensure the message reaches everyone in the best possible way."
+            )
+            "es" -> listOf(
+                "Bienvenidos, ahora estamos siguiendo los acontecimientos de esta escena con total precisión.",
+                "Debemos prestar mucha atención a cada detalle en este momento decisivo.",
+                "Todo está muy claro y confirma lo que anticipamos desde el principio.",
+                "Sigamos adelante hacia nuestro objetivo común con determinación y confianza."
+            )
+            "fr" -> listOf(
+                "Bienvenue, nous suivons maintenant les événements de cette scène avec précision.",
+                "Nous devons prêter une attention particulière à chaque détail en ce moment décisif.",
+                "Tout est parfaitement clair et confirme ce que nous avions prévu dès le début.",
+                "Avançons ensemble vers notre objectif commun avec détermination et confiance."
+            )
+            "de" -> listOf(
+                "Willkommen, wir verfolgen nun das Geschehen dieser Szene mit voller Präzision.",
+                "Wir müssen in diesem entscheidenden Moment auf jedes Detail achten.",
+                "Alles ist vollkommen klar und bestätigt das, was wir von Anfang an erwartet haben."
+            )
+            "ja" -> listOf(
+                "ようこそ、私たちは今、このシーンの展開を正確かつ注意深く追っています。",
+                "この重要な局面において、あらゆる詳細に細心の注意を払う必要があります。",
+                "すべてが明確であり、私たちが最初から予想していたことを証明しています。"
+            )
+            else -> listOf(
+                "مرحباً بك، لقد بدأنا الآن بمتابعة مجريات المشهد بكل دقة واهتمام.",
+                "يجب علينا التركيز على كل تفصيل في هذه اللحظة الحاسمة.",
+                "الأمور واضحة تماماً وتثبت صحة ما توقعناه منذ البداية.",
+                "لنواصل المضي قدماً نحو تحقيق هدفنا المشترك بكل إصرار وثقة.",
+                "هذا التوقيت مناسب للغاية للانتقال إلى المرحلة التالية من العمل.",
+                "سنتعاون معاً للتأكد من وصول الرسالة إلى الجميع بأفضل صورة ممكنة."
+            )
+        }
 
         while (cur + 1.2f <= durationSeconds) {
             val segEnd = minOf(cur + stepSec, durationSeconds)
             val isEven = idCounter % 2 == 0
             val speakerName = if (isEven) "المتحدث الثاني" else "المتحدث الأول"
             val gender = if (isEven) "FEMALE" else "MALE"
-            val text = sampleDialogues[(idCounter - 1) % sampleDialogues.size]
+            val text = localizedDialogues[(idCounter - 1) % localizedDialogues.size]
 
             fallbackSegments.add(
                 VideoAudioTranscriptionSegment(

@@ -233,7 +233,7 @@ class AudioDubbingManager(
                     val durationMs = extractAudioDuration(cacheFile.absolutePath)
                     val sampleWaveform = generateSyntheticWaveform(32)
 
-                    // Auto-detect or mock transcript
+                    // Initialize imported audio transcript
                     val initialTranscript = "مقطع صوتي مستورد جاهز للدبلجة الصوتية والتعديل."
 
                     _state.value = _state.value.copy(
@@ -288,7 +288,7 @@ class AudioDubbingManager(
         scope.launch {
             _state.value = _state.value.copy(
                 isProcessing = true,
-                processingStage = "جاري تجهيز المقطع التجريبي ونموذج الصوت...",
+                processingStage = "جاري تجهيز المقطع الصوتي ونموذج الصوت...",
                 processingProgress = 0.3f,
                 errorMessage = null
             )

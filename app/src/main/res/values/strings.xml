@@ -2,9 +2,8 @@
     <string name="app_name">فويس ماستر برو</string>
     <string name="app_full_title">فويس ماستر برو | VoiceMaster Pro</string>
     <string name="app_subtitle">استوديو الدبلجة وهندسة الصوت بالذكاء الاصطناعي</string>
-    <string name="app_copyright_holder">محمد رضا محمود محمود السيد سليمة</string>
-    <string name="app_copyright_address">مصر - محافظة المنوفية - شبين الكوم - شارع القفاص</string>
-    <string name="app_copyright_notice">جميع حقوق الملكية الفكرية والنشر محفوظة © 2026 للأستاذ / محمد رضا محمود محمود السيد سليمة</string>
+    <string name="app_copyright_holder">محمد سليمه</string>
+    <string name="app_copyright_notice">حفظ جميع الحقوق والملكية الفكرية وحقوق النشر للناشر محمد سليمه والمكان فكريه © 2026</string>
     
     <string name="tab_studio">الاستوديو</string>
     <string name="tab_projects">مشاريعي</string>

@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
@@ -160,6 +161,8 @@ fun VideoAutoDubberScreen(
     var showCloudTtsDialog by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
     var showVattSubtitlesDialog by remember { mutableStateOf(false) }
+    val savedGeminiKey by viewModel.geminiApiKey.collectAsState()
+    var showExtractKeyDialog by remember { mutableStateOf(false) }
 
     val vattState by viewModel.vattState.collectAsState()
     val cloudTtsConfig by viewModel.cloudTtsConfig.collectAsState()
@@ -1251,11 +1254,92 @@ fun VideoAutoDubberScreen(
             )
         }
 
+        // 4.5 Gemini API Key Notice & Extraction Card
+        item {
+            val isKeyMissing = savedGeminiKey.isBlank() || savedGeminiKey.startsWith("AQ.Ab8") || savedGeminiKey == "MY_GEMINI_API_KEY"
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showExtractKeyDialog = true }
+                    .testTag("extract_api_key_banner_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isKeyMissing) Color(0xFFFEF3C7) else Color(0xFFD1FAE5)
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    if (isKeyMissing) Color(0xFFF59E0B) else Color(0xFF10B981)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isKeyMissing) Color(0xFFF59E0B).copy(alpha = 0.2f) else Color(0xFF10B981).copy(alpha = 0.2f),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isKeyMissing) Icons.Default.VpnKey else Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = if (isKeyMissing) Color(0xFFD97706) else Color(0xFF059669),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isKeyMissing)
+                                "مفتاح الذكاء الاصطناعي: مطلوب استخراج مفتاح جديد 🔑"
+                            else
+                                "مفتاح الذكاء الاصطناعي: مسجل ومفعل محلياً 🟢",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.5.sp,
+                            color = if (isKeyMissing) Color(0xFF92400E) else Color(0xFF065F46)
+                        )
+                        Text(
+                            text = if (isKeyMissing)
+                                "اضغط هنا لاستخراج مفتاحك المجاني 100% من Google AI Studio في دقيقة واحدة"
+                            else
+                                "اضغط لتعديل أو استبدال أو حذف المفتاح المسجل",
+                            fontSize = 11.sp,
+                            color = if (isKeyMissing) Color(0xFFB45309) else Color(0xFF047857)
+                        )
+                    }
+                    Button(
+                        onClick = { showExtractKeyDialog = true },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isKeyMissing) Color(0xFFD97706) else Color(0xFF059669)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (isKeyMissing) "استخراج مفتاح ⚡" else "إدارة المفتاح ⚙️",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
         // 5. Action Button: Start Auto Dubbing
         item {
             val isReady = autoDubState.importedVideo != null
+            val isKeyMissing = savedGeminiKey.isBlank() || savedGeminiKey.startsWith("AQ.Ab8") || savedGeminiKey == "MY_GEMINI_API_KEY"
             Button(
-                onClick = { viewModel.startAutoVideoDubbing() },
+                onClick = {
+                    if (isKeyMissing) {
+                        showExtractKeyDialog = true
+                        viewModel.showToast("يرجى استخراج وتفعيل مفتاح الذكاء الاصطناعي المجاني أولاً للمتابعة 🔑")
+                    } else {
+                        viewModel.startAutoVideoDubbing()
+                    }
+                },
                 enabled = isReady && !autoDubState.isProcessing,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2707,6 +2791,23 @@ fun VideoAutoDubberScreen(
                     Text("إغلاق", fontSize = 12.sp)
                 }
             }
+        )
+    }
+
+    if (showExtractKeyDialog) {
+        com.example.ui.components.ExtractGeminiApiKeyDialog(
+            currentSavedKey = savedGeminiKey,
+            onSaveKey = { newKey ->
+                viewModel.updateGeminiApiKey(newKey)
+                showExtractKeyDialog = false
+            },
+            onClearKey = {
+                viewModel.clearGeminiApiKey()
+            },
+            onDismiss = {
+                showExtractKeyDialog = false
+            },
+            aiClient = viewModel.geminiUnifiedClient
         )
     }
 }

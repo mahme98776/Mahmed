@@ -98,7 +98,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.audio.AudioDubbingTrackMode
-import com.example.audio.DemoAudioPreset
 import com.example.audio.DubbingDialect
 import com.example.audio.VoiceProfile
 import com.example.ui.DubbingViewModel
@@ -122,7 +121,6 @@ fun AudioDubbingScreen(
     var exportedFilePath by remember { mutableStateOf<String?>(null) }
     var savedStoragePath by remember { mutableStateOf<String?>(null) }
     var isSavingToStorage by remember { mutableStateOf(false) }
-    var showDemoPickerSheet by remember { mutableStateOf(false) }
 
     // Audio File Picker Launcher
     val audioPickerLauncher = rememberLauncherForActivityResult(
@@ -267,37 +265,18 @@ fun AudioDubbingScreen(
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Button(
+                        onClick = { audioPickerLauncher.launch("audio/*") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("btn_import_audio_file"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
                     ) {
-                        Button(
-                            onClick = { audioPickerLauncher.launch("audio/*") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .testTag("btn_import_audio_file"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
-                        ) {
-                            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("استيراد ملف صوتي 📂", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        Button(
-                            onClick = { showDemoPickerSheet = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp)
-                                .testTag("btn_pick_demo_audio"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA855F7))
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("نماذج صوتية جاهزة 🎵", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
+                        Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("استيراد ملف صوتي حقيقي (MP3 / WAV / M4A) 📂", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
 
                     // Display Current Input Details
@@ -949,49 +928,7 @@ fun AudioDubbingScreen(
         }
     }
 
-    // Demo Audio Presets Dialog
-    if (showDemoPickerSheet) {
-        AlertDialog(
-            onDismissRequest = { showDemoPickerSheet = false },
-            title = {
-                Text("اختر نموذجاً صوتياً جاهزاً للدبلجة ✨", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    audioDubbingManager.demoAudioPresets.forEach { preset ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    audioDubbingManager.loadDemoPreset(preset)
-                                    showDemoPickerSheet = false
-                                },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                            border = BorderStroke(1.dp, Color(0xFF334155))
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(preset.titleArabic, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF38BDF8))
-                                Spacer(Modifier.height(3.dp))
-                                Text(
-                                    text = preset.sampleText,
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF94A3B8),
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                OutlinedButton(onClick = { showDemoPickerSheet = false }) {
-                    Text("إغلاق")
-                }
-            }
-        )
-    }
+
 
     // Export & Share Dialog
     if (showExportSuccessDialog && exportedFilePath != null) {

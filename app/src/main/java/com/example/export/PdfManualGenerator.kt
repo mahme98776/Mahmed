@@ -110,11 +110,11 @@ object PdfManualGenerator {
             paint.color = darkPurple
             canvas1.drawRect(0f, 130f, pageWidth.toFloat(), 140f, paint)
 
-            // Header Content
+            // Header Content: محمد رضا محمود محمود سليمه من أسس هذا التطبيق
             canvas1.drawText("دليل الاستخدام الشامل - فويس ماستر برو | VoiceMaster Pro 🎙️", pageWidth - 30f, 45f, titlePaint)
-            canvas1.drawText("جميع حقوق الملكية الفكرية محفوظة © 2026 للمطور: محمد رضا محمود محمود السيد سليمة", pageWidth - 30f, 75f, subtitlePaint)
+            canvas1.drawText("جميع حقوق الملكية الفكرية محفوظة © 2026 لمؤسس التطبيق: محمد رضا محمود محمود سليمه", pageWidth - 30f, 75f, subtitlePaint)
             val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
-            canvas1.drawText("مصر - المنوفية - شبين الكوم - شارع القفاص • تاريخ الإصدار: $dateStr • v2.6 Pro", pageWidth - 30f, 105f, subtitlePaint)
+            canvas1.drawText("تاريخ الإصدار: $dateStr • الإصدار الاحترافي v2.8 Pro", pageWidth - 30f, 105f, subtitlePaint)
 
             // Overview Box
             var currentY = 160f

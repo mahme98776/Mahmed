@@ -32,6 +32,20 @@ class GeminiAiScriptGenerator(private val context: Context) {
         customPromptOrStyle: String = "",
         dialect: DubbingDialect = DubbingDialect.MODERN_STANDARD_CLASSIC,
         apiKey: String = ""
+    ): Result<List<ScriptLine>> = generateDubbingScript(
+        clip = clip,
+        targetLanguage = "العربية",
+        customPromptOrStyle = customPromptOrStyle,
+        dialect = dialect,
+        apiKey = apiKey
+    )
+
+    suspend fun generateDubbingScript(
+        clip: DubbingClip,
+        targetLanguage: String = "العربية",
+        customPromptOrStyle: String = "",
+        dialect: DubbingDialect = DubbingDialect.MODERN_STANDARD_CLASSIC,
+        apiKey: String = ""
     ): Result<List<ScriptLine>> = withContext(Dispatchers.IO) {
         // If the video duration exceeds 300 seconds (5 minutes), split into sequential logical chunk windows (e.g. 180s each)
         // to prevent token overflow, API timeouts, and ensure complete dialogue coverage for long videos up to 60+ minutes.
@@ -56,7 +70,7 @@ class GeminiAiScriptGenerator(private val context: Context) {
                     append("الجزء ${chunkIdx + 1} من إجمالي $numChunks أجزاء (من الدقيقة ${chunkStart / 60}:${String.format(java.util.Locale.US, "%02d", chunkStart % 60)} إلى ${chunkEnd / 60}:${String.format(java.util.Locale.US, "%02d", chunkEnd % 60)}). تابع تسلسل القصة والحوار بانسجام وسلاسة.")
                 }
 
-                val chunkResult = generateSingleChunkArabicDubbingScript(chunkClip, chunkPrompt, dialect, apiKey)
+                val chunkResult = generateSingleChunkDubbingScript(chunkClip, targetLanguage, chunkPrompt, dialect, apiKey)
                 val lines = chunkResult.getOrNull() ?: emptyList()
 
                 lines.forEach { line ->
@@ -77,15 +91,16 @@ class GeminiAiScriptGenerator(private val context: Context) {
             if (aggregatedLines.isNotEmpty()) {
                 return@withContext Result.success(aggregatedLines)
             } else {
-                return@withContext Result.success(createOfflineFallbackScript(clip, customPromptOrStyle, dialect))
+                return@withContext Result.success(createOfflineFallbackScript(clip, customPromptOrStyle, dialect, targetLanguage))
             }
         }
 
-        generateSingleChunkArabicDubbingScript(clip, customPromptOrStyle, dialect, apiKey)
+        generateSingleChunkDubbingScript(clip, targetLanguage, customPromptOrStyle, dialect, apiKey)
     }
 
-    private suspend fun generateSingleChunkArabicDubbingScript(
+    private suspend fun generateSingleChunkDubbingScript(
         clip: DubbingClip,
+        targetLanguage: String = "العربية",
         customPromptOrStyle: String = "",
         dialect: DubbingDialect = DubbingDialect.MODERN_STANDARD_CLASSIC,
         apiKey: String = ""
@@ -107,17 +122,23 @@ class GeminiAiScriptGenerator(private val context: Context) {
 
             // If API key is not configured or network fails, fallback to high-quality localized dynamic generation
             if (key.isBlank() || key.contains("YOUR_API_KEY") || key == "null") {
-                val fallbackScript = createOfflineFallbackScript(clip, customPromptOrStyle, dialect)
+                val fallbackScript = createOfflineFallbackScript(clip, customPromptOrStyle, dialect, targetLanguage)
                 return@withContext Result.success(fallbackScript)
             }
 
+            val isArabic = targetLanguage.contains("عرب") || targetLanguage.equals("ar", ignoreCase = true)
+            val langInstruction = if (isArabic) {
+                "- Target Language: Arabic with Dialect: ${dialect.displayNameArabic} (${dialect.nativeRegion})\n- Dialect Directives: ${dialect.promptInstruction}"
+            } else {
+                "- Target Language for Dubbing: $targetLanguage. Dialogue must be written directly and natively in $targetLanguage matching lip-sync and duration."
+            }
+
             val prompt = buildString {
-                appendLine("You are an award-winning Arab Voice Acting Director and Sound Dubbing Producer (مخرج دوبلاج وتمثيل صوتي محترف).")
-                appendLine("Your mission: Localize, adapt, and craft pristine dubbing dialogue for the target video with exquisite character synchronization, natural emotional cadence, and exact lip-sync length timing.")
+                appendLine("You are an award-winning International Voice Acting Director and Sound Dubbing Producer (مخرج دوبلاج وتمثيل صوتي عالمي).")
+                appendLine("Your mission: Localize, adapt, and craft pristine dubbing dialogue in $targetLanguage for the target video with exquisite character synchronization, natural emotional cadence, and exact lip-sync length timing.")
                 appendLine()
-                appendLine("### TARGET DIALECT & REGISTER:")
-                appendLine("- Dialect: ${dialect.displayNameArabic} (${dialect.nativeRegion})")
-                appendLine("- Dialect Directives: ${dialect.promptInstruction}")
+                appendLine("### TARGET LANGUAGE & REGISTER:")
+                appendLine(langInstruction)
                 appendLine()
                 appendLine("### SCENE METADATA:")
                 appendLine("- Scene Title: ${clip.title}")
@@ -135,7 +156,7 @@ class GeminiAiScriptGenerator(private val context: Context) {
                 }
                 appendLine()
                 appendLine("### DUBBING CRAFT REQUIREMENTS:")
-                appendLine("1. Faithful & Direct Translation: Translate the exact meaning of the original dialogue accurately, truthfully, and authentically into fluent, pure Arabic. Do NOT alter the meaning, do NOT add unsolicited slang, and do NOT insert unnecessary comedy or invented lines.")
+                appendLine("1. Faithful & Direct Adaptation: Adapt the dialogue directly, faithfully, and authentically into fluent, natural $targetLanguage. Do NOT alter meaning and do NOT insert unnecessary filler.")
                 appendLine("2. Natural Lip-Sync & Timing: Syllable counts and phrase lengths MUST match the character's speaking window and mouth movements.")
                 appendLine("3. Authentic Dialogue Fidelity: Respect the drama, tone, and character personality exactly as in the original scene, matching high-end cinematic movie dubbing standards.")
                 appendLine("4. Distinct Characters: Distribute lines across appropriate voice types (e.g. HERO_MALE, HEROINE_FEMALE, EPIC_NARRATOR, DRAMATIC, ARABIC_MALE, ARABIC_FEMALE).")
@@ -144,10 +165,10 @@ class GeminiAiScriptGenerator(private val context: Context) {
                 appendLine("""
                 [
                   {
-                    "characterName": "اسم الشخصية بالعربية",
+                    "characterName": "Character Name in $targetLanguage",
                     "characterAvatar": "🎭",
-                    "textArabic": "الحوار الصوتي بالأسلوب واللهجة المطلوبة بدقة وتزامن تام",
-                    "textOriginal": "Original source or English translation",
+                    "textArabic": "Dubbing spoken dialogue in $targetLanguage with high fidelity and timing",
+                    "textOriginal": "Original source or translation",
                     "startSeconds": 0.0,
                     "endSeconds": 4.5,
                     "voiceType": "HERO_MALE",
@@ -180,32 +201,52 @@ class GeminiAiScriptGenerator(private val context: Context) {
                     })
                 })
 
-                // Generation config
+                val adaptiveTemperature = when {
+                    customPromptOrStyle.contains("إبداع") || customPromptOrStyle.contains("كوميد") || 
+                    customPromptOrStyle.contains("حماس") || customPromptOrStyle.contains("درام") || 
+                    customPromptOrStyle.contains("شعر") -> 0.7
+                    customPromptOrStyle.contains("حرفي") || customPromptOrStyle.contains("دقيق") -> 0.2
+                    else -> 0.4
+                }
+
+                // Generation config with flexible temperature
                 put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.3)
+                    put("temperature", adaptiveTemperature)
                     put("responseMimeType", "application/json")
                 })
             }
 
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/$geminiModel:generateContent?key=$key"
-            val request = Request.Builder()
-                .url(url)
-                .post(requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
-                .build()
+            val candidateModels = listOf("gemini-3.5-flash", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash")
+            var responseBody = ""
+            var success = false
 
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
+            for (mod in candidateModels) {
+                try {
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$mod:generateContent?key=$key"
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+                        .build()
 
-            if (!response.isSuccessful) {
-                // Return rich fallback script if network error occurs
-                val fallbackScript = createOfflineFallbackScript(clip, customPromptOrStyle)
+                    val response = httpClient.newCall(request).execute()
+                    val bodyStr = response.body?.string() ?: ""
+                    if (response.isSuccessful && bodyStr.isNotBlank()) {
+                        responseBody = bodyStr
+                        success = true
+                        break
+                    }
+                } catch (_: Exception) {}
+            }
+
+            if (!success || responseBody.isBlank()) {
+                val fallbackScript = createOfflineFallbackScript(clip, customPromptOrStyle, dialect, targetLanguage)
                 return@withContext Result.success(fallbackScript)
             }
 
             val jsonResponse = JSONObject(responseBody)
             val candidates = jsonResponse.optJSONArray("candidates")
             if (candidates == null || candidates.length() == 0) {
-                return@withContext Result.success(createOfflineFallbackScript(clip, customPromptOrStyle))
+                return@withContext Result.success(createOfflineFallbackScript(clip, customPromptOrStyle, dialect, targetLanguage))
             }
 
             val candidate = candidates.getJSONObject(0)
@@ -254,12 +295,12 @@ class GeminiAiScriptGenerator(private val context: Context) {
             if (resultList.isNotEmpty()) {
                 Result.success(resultList)
             } else {
-                Result.success(createOfflineFallbackScript(clip, customPromptOrStyle, dialect))
+                Result.success(createOfflineFallbackScript(clip, customPromptOrStyle, dialect, targetLanguage))
             }
         } catch (e: Exception) {
             e.printStackTrace()
             // Fallback gracefully on any exception
-            Result.success(createOfflineFallbackScript(clip, customPromptOrStyle, dialect))
+            Result.success(createOfflineFallbackScript(clip, customPromptOrStyle, dialect, targetLanguage))
         }
     }
 
@@ -271,11 +312,13 @@ class GeminiAiScriptGenerator(private val context: Context) {
     private fun createOfflineFallbackScript(
         clip: DubbingClip,
         customStyle: String,
-        dialect: DubbingDialect = DubbingDialect.MODERN_STANDARD_CLASSIC
+        dialect: DubbingDialect = DubbingDialect.MODERN_STANDARD_CLASSIC,
+        targetLanguage: String = "العربية"
     ): List<ScriptLine> {
         val duration = clip.durationSeconds.toFloat()
+        val isArabic = targetLanguage.contains("عرب") || targetLanguage.equals("ar", ignoreCase = true)
 
-        return when (clip.id) {
+        val rawLines = when (clip.id) {
             "korean_drama_seoul" -> listOf(
                 ScriptLine(
                     id = "gemini_kdrama_1",
@@ -399,47 +442,51 @@ class GeminiAiScriptGenerator(private val context: Context) {
                 val isKDrama = clip.category.contains("كوري") || clip.title.contains("كوري") || customStyle.contains("كوري") || customStyle.contains("دراما")
                 
                 val animeDialogues = listOf(
-                    Triple("بطل الأنمي (حسام)", "🦸", "HERO_MALE") to ("أيها الأبطال، طاقة الإرادة في قلوبنا لن تنطفئ أبداً! انطلقوا الآن!" to "MALE"),
-                    Triple("المنافس الشجاع (كاي)", "🦹", "DRAMATIC") to ("مهما كانت قوة الخصم، سنخوض هذه المواجهة بكل ما نملك من شجاعة!" to "MALE"),
-                    Triple("البطلة (سلمى)", "🌸", "HEROINE_FEMALE") to ("قلوبنا وعزيمتنا متحدة معاً.. سنحمي كوكبنا ونصنع غداً مشرقاً!" to "FEMALE"),
-                    Triple("الراوي الملحمي الأسطوري", "🌟", "EPIC_NARRATOR") to ("وهكذا يثبت أبطال المستقبل أن الصداقة والإخلاص يتفوقان على كل الصعاب!" to "MALE"),
-                    Triple("بطل الأنمي (حسام)", "🦸", "HERO_MALE") to ("استعدوا للضربة الحاسمة! طاقة الصاعقة الذهبية، اتحدي وانطلقي!" to "MALE"),
-                    Triple("المنافس الشجاع (كاي)", "🦹", "DRAMATIC") to ("هذا هو الأداء الحقيقي الذي كنت أنتظره منك يا حسام!" to "MALE")
+                    Triple("بطل الأنمي (حسام)", "🦸", "HERO_MALE") to (("أيها الأبطال، طاقة الإرادة في قلوبنا لن تنطفئ أبداً! انطلقوا الآن!" to "Heroes, the willpower in our hearts will never fade! Charge forward now!") to "MALE"),
+                    Triple("المنافس الشجاع (كاي)", "🦹", "DRAMATIC") to (("مهما كانت قوة الخصم، سنخوض هذه المواجهة بكل ما نملك من شجاعة!" to "No matter how strong the opponent is, we will fight with all our might!") to "MALE"),
+                    Triple("البطلة (سلمى)", "🌸", "HEROINE_FEMALE") to (("قلوبنا وعزيمتنا متحدة معاً.. سنحمي كوكبنا ونصنع غداً مشرقاً!" to "Our hearts and determination are united.. We will protect our future together!") to "FEMALE"),
+                    Triple("الراوي الملحمي الأسطوري", "🌟", "EPIC_NARRATOR") to (("وهكذا يثبت أبطال المستقبل أن الصداقة والإخلاص يتفوقان على كل الصعاب!" to "And thus, the champions prove that friendship and sincerity overcome all challenges!") to "MALE"),
+                    Triple("بطل الأنمي (حسام)", "🦸", "HERO_MALE") to (("استعدوا للضربة الحاسمة! طاقة الصاعقة الذهبية، اتحدي وانطلقي!" to "Get ready for the decisive strike! Golden lightning power, unleash!") to "MALE"),
+                    Triple("المنافس الشجاع (كاي)", "🦹", "DRAMATIC") to (("هذا هو الأداء الحقيقي الذي كنت أنتظره منك يا حسام!" to "This is the true performance I have been waiting to see from you!") to "MALE")
                 )
 
                 val kdramaDialogues = listOf(
-                    Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to ("في تلك اللحظة التي التقت فيها أعيننا، علمت أن قدري مرتبط بكِ للأبد." to "MALE"),
-                    Triple("البطلة (يون سو)", "👩‍💼", "HEROINE_FEMALE") to ("لقد عشت طويلاً أنتظر هذا الاعتراف الصادق وسط كل هذه العواصف." to "FEMALE"),
-                    Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to ("لن أسمح لأي شيء في هذا العالم أن يفرقنا بعد اليوم.. سأكون بجانبكِ دائماً." to "MALE"),
-                    Triple("راوية الدراما", "✨", "HEROINE_FEMALE") to ("وهكذا تذوب آلام الماضي وتشرق شمس الأمل والحب في قلوب الجميع من جديد." to "FEMALE"),
-                    Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to ("دعينا ننسى كل ما مضى ونمضي معاً في هذا الدرب المليء بالدفء والسلام." to "MALE")
+                    Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to (("في تلك اللحظة التي التقت فيها أعيننا، علمت أن قدري مرتبط بكِ للأبد." to "In that moment when our eyes met, I knew my destiny was tied to yours forever.") to "MALE"),
+                    Triple("البطلة (يون سو)", "👩‍💼", "HEROINE_FEMALE") to (("لقد عشت طويلاً أنتظر هذا الاعتراف الصادق وسط كل هذه العواصف." to "I lived so long waiting for this honest confession amidst all these storms.") to "FEMALE"),
+                    Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to (("لن أسمح لأي شيء في هذا العالم أن يفرقنا بعد اليوم.. سأكون بجانبكِ دائماً." to "I will never let anything in this world part us again.. I will always stay by your side.") to "MALE"),
+                    Triple("راوية الدراما", "✨", "HEROINE_FEMALE") to (("وهكذا تذوب آلام الماضي وتشرق شمس الأمل والحب في قلوب الجميع من جديد." to "And thus, the pain of the past melts away and the light of hope shines once again.") to "FEMALE"),
+                    Triple("البطل (مين هو)", "👨‍💼", "ARABIC_MALE") to (("دعينا ننسى كل ما مضى ونمضي معاً في هذا الدرب المليء بالدفء والسلام." to "Let us leave everything behind and walk together on this warm and peaceful path.") to "MALE")
                 )
 
                 val defaultDialogues = listOf(
-                    Triple("المتحدث الأول", "🎙️", "ARABIC_MALE") to ("مرحباً بكم في هذا المشهد الرائع! دعونا نتابع مجريات الأحداث بدقة وشغف." to "MALE"),
-                    Triple("المتحدث الثاني", "✨", "ARABIC_FEMALE") to ("كل مشهد وتفصيل يحمل في طياته دلالات عميقة تستحق كل الاهتمام والتركيز." to "FEMALE"),
-                    Triple("المعلق السينمائي", "🎬", "DRAMATIC") to ("تتسارع وتيرة الأحداث الآن لنصل إلى ذروة المشهد المشوقة والمؤثرة." to "MALE"),
-                    Triple("المتحدث الأول", "🎙️", "ARABIC_MALE") to ("وهكذا تتكامل عناصر الإبداع والأداء الصوتي الاحترافي في هذا العمل المتميز." to "MALE")
+                    Triple("المتحدث الأول", "🎙️", "ARABIC_MALE") to (("مرحباً بكم في هذا المشهد الرائع! دعونا نتابع مجريات الأحداث بدقة وشغف." to "Welcome to this captivating cinematic scene! Let's follow every detail with passion.") to "MALE"),
+                    Triple("المتحدث الثاني", "✨", "ARABIC_FEMALE") to (("كل مشهد وتفصيل يحمل في طياته دلالات عميقة تستحق كل الاهتمام والتركيز." to "Every scene and emotion carries profound depth deserving complete appreciation.") to "FEMALE"),
+                    Triple("المعلق السينمائي", "🎬", "DRAMATIC") to (("تتسارع وتيرة الأحداث الآن لنصل إلى ذروة المشهد المشوقة والمؤثرة." to "The narrative accelerates now as we reach this thrilling and moving climax.") to "MALE"),
+                    Triple("المتحدث الأول", "🎙️", "ARABIC_MALE") to (("وهكذا تتكامل عناصر الإبداع والأداء الصوتي الاحترافي في هذا العمل المتميز." to "And thus, creativity and professional voice acting unite in this masterpiece.") to "MALE")
                 )
 
                 val dialoguePool = if (isAnime) animeDialogues else if (isKDrama) kdramaDialogues else defaultDialogues
                 val stepSec = duration / numSegments
 
                 for (i in 0 until numSegments) {
-                    val pair = dialoguePool[i % dialoguePool.size]
+                    val entry = dialoguePool[i % dialoguePool.size]
                     val start = (i * stepSec) + 0.5f
                     val end = minOf(duration, start + (stepSec * 0.85f).coerceAtLeast(3.5f))
-                    val gender = pair.second.second
+                    val gender = entry.second.second
+                    val arText = entry.second.first.first
+                    val enText = entry.second.first.second
+                    val spokenText = if (isArabic) arText else enText
+
                     lines.add(
                         ScriptLine(
                             id = "gemini_gen_dyn_${i}_${System.currentTimeMillis()}",
-                            characterName = pair.first.first,
-                            characterAvatar = pair.first.second,
-                            textArabic = pair.second.first,
-                            textOriginal = "Localized contextual line for segment ${i + 1}",
+                            characterName = entry.first.first,
+                            characterAvatar = entry.first.second,
+                            textArabic = spokenText,
+                            textOriginal = enText,
                             startSeconds = start,
                             endSeconds = end,
-                            voiceType = pair.first.third,
+                            voiceType = if (isArabic) entry.first.third else (if (gender == "FEMALE") "EN_FEMALE" else "EN_MALE"),
                             speakerGender = gender,
                             genderConfidence = (90..97).random()
                         )
@@ -447,6 +494,22 @@ class GeminiAiScriptGenerator(private val context: Context) {
                 }
                 lines
             }
+        }
+
+        return if (!isArabic) {
+            rawLines.map { line ->
+                val localizedText = if (line.textOriginal.isNotBlank() && !line.textOriginal.startsWith("Localized contextual")) {
+                    line.textOriginal
+                } else {
+                    line.textArabic
+                }
+                line.copy(
+                    textArabic = localizedText,
+                    voiceType = if (line.speakerGender == "FEMALE") "EN_FEMALE" else "EN_MALE"
+                )
+            }
+        } else {
+            rawLines
         }
     }
 }

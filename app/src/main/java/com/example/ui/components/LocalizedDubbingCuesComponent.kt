@@ -1028,7 +1028,7 @@ fun EmptyCuesStateCard(
                 text = if (hasFilters)
                     "جرب تغيير كلمة البحث أو تحديد شخصية أخرى لإظهار المقاطع."
                 else
-                    "يمكنك توليد توقيتات دبلجة ذكية تلقائياً من الفيديو أو تحميل عينات نموذجية جاهزة للاستماع.",
+                    "يمكنك استخراج وتوليد توقيتات دبلجة ذكية متزامنة تلقائياً من الفيديو بالذكاء الاصطناعي.",
                 fontSize = 11.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -1041,7 +1041,7 @@ fun EmptyCuesStateCard(
                     }
                 } else {
                     Button(onClick = onLoadSample) {
-                        Text("تحميل عينات توقيتات تجريبية ✨")
+                        Text("توليد توقيتات ذكية بالذكاء الاصطناعي ✨")
                     }
                 }
             }

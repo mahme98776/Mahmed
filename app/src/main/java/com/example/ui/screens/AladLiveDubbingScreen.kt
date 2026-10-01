@@ -125,7 +125,6 @@ fun AladLiveDubbingScreen(
     }
 
     val isLiveDubbing by aladEngine.isLiveDubbing.collectAsStateWithLifecycle()
-    val isDemoRunning by aladEngine.isDemoSimulationRunning.collectAsStateWithLifecycle()
     val targetLanguage by aladEngine.targetLanguage.collectAsStateWithLifecycle()
     val selectedApp by aladEngine.selectedTargetApp.collectAsStateWithLifecycle()
     val isSpeakingDub by aladEngine.liveClient.isSpeakingDub.collectAsStateWithLifecycle()
@@ -662,7 +661,7 @@ fun AladLiveDubbingScreen(
                             ),
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
-                                .weight(1f)
+                                .fillMaxWidth()
                                 .height(52.dp)
                                 .testTag("alad_start_stop_live_btn")
                         ) {
@@ -673,46 +672,9 @@ fun AladLiveDubbingScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isLiveDubbing) "إيقاف الدبلجة ⏹️" else "بدء الدبلجة الحية 🔴",
+                                text = if (isLiveDubbing) "إيقاف الدبلجة الحية ⏹️" else "بدء الدبلجة الحية الحقيقية 🔴",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
-                            )
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                if (isDemoRunning) {
-                                    aladEngine.stopDemoSimulation()
-                                    Toast.makeText(context, "تم إيقاف تجربة المحاكاة", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    aladEngine.startDemoSimulation()
-                                    Toast.makeText(
-                                        context,
-                                        "جاري محاكاة دبلجة بث وثائقي أجنبي فورياً إلى ${targetLanguage.nameArabic} ⚡",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            },
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFFD0BCFF)
-                            ),
-                            border = BorderStroke(1.dp, Color(0xFFD0BCFF)),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp)
-                                .testTag("alad_demo_simulation_btn")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AutoAwesome,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (isDemoRunning) "إيقاف التجربة" else "تجربة محاكاة ⚡",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
                             )
                         }
                     }

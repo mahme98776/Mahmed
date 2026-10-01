@@ -2,9 +2,9 @@
  * تطبيق فويس ماستر برو | VoiceMaster Pro
  * استوديو الدبلجة وهندسة الصوت بالذكاء الاصطناعي
  * 
- * المالك والمبتكر وصاحب كافة حقوق النشر والملكية الفكرية:
- * محمد رضا محمود محمود السيد سليمة
- * مصر - محافظة المنوفية - مركز شبين الكوم - شارع القفاص
+ * المالك والمبتكر ومؤسس هذا التطبيق:
+ * محمد رضا محمود محمود سليمه
+ * محمد رضا محمود محمود سليمه من أسس هذا التطبيق
  * جميع الحقوق محفوظة © 2026
  */
 package com.example.ui
@@ -571,16 +571,53 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     )
     val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
 
+    private val _showExtractApiKeyDialog = MutableStateFlow(false)
+    val showExtractApiKeyDialog: StateFlow<Boolean> = _showExtractApiKeyDialog.asStateFlow()
+
+    fun setShowExtractApiKeyDialog(show: Boolean) {
+        _showExtractApiKeyDialog.value = show
+    }
+
     fun updateGeminiApiKey(key: String) {
+        // محمد رضا محمود محمود سليمه من أسس هذا التطبيق
         val trimmed = key.trim()
         _geminiApiKey.value = trimmed
-        aiPrefs.edit().putString("gemini_api_key", trimmed).commit()
+        aiPrefs.edit()
+            .putString("gemini_api_key", trimmed)
+            .putLong("api_key_extracted_at_v2", System.currentTimeMillis())
+            .commit()
         val currentTts = _cloudTtsConfig.value
         val updatedTts = currentTts.copy(googleCloudApiKey = trimmed)
         _cloudTtsConfig.value = updatedTts
         cloudTtsPrefs.saveConfig(updatedTts)
         _uiState.value = _uiState.value.copy(
-            toastMessage = "تم حفظ مفتاح الذكاء الاصطناعي بشكل دائم بنجاح! 🔑✨"
+            toastMessage = "تم حفظ وتفعيل مفتاح الذكاء الاصطناعي بنجاح! 🔑✨"
+        )
+    }
+
+    fun clearGeminiApiKey() {
+        // محمد رضا محمود محمود سليمه من أسس هذا التطبيق
+        _geminiApiKey.value = ""
+        aiPrefs.edit()
+            .remove("gemini_api_key")
+            .remove("api_key_extracted_at_v2")
+            .commit()
+        getApplication<Application>().getSharedPreferences("ai_dubbing_prefs", android.content.Context.MODE_PRIVATE)
+            .edit().remove("gemini_api_key").commit()
+        getApplication<Application>().getSharedPreferences("dubbing_studio_prefs", android.content.Context.MODE_PRIVATE)
+            .edit().remove("gemini_api_key").commit()
+        getApplication<Application>().getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
+            .edit().remove("custom_gemini_api_key").commit()
+        getApplication<Application>().getSharedPreferences("cloud_tts_prefs", android.content.Context.MODE_PRIVATE)
+            .edit().remove("google_cloud_key").commit()
+
+        val currentTts = _cloudTtsConfig.value
+        val updatedTts = currentTts.copy(googleCloudApiKey = "")
+        _cloudTtsConfig.value = updatedTts
+        cloudTtsPrefs.saveConfig(updatedTts)
+        _showExtractApiKeyDialog.value = true
+        _uiState.value = _uiState.value.copy(
+            toastMessage = "تم حذف مفتاح API المسجل بالكامل 🗑️. يمكنك الآن استخراج مفتاح جديد 🔑"
         )
     }
 
@@ -1393,6 +1430,33 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     val currentlyPlayingRecordingId: StateFlow<Long?> = _currentlyPlayingRecordingId.asStateFlow()
 
     init {
+        // Clear previously recorded API keys so user extracts their own personal key
+        val hasPurgedLegacyKey = aiPrefs.getBoolean("has_purged_legacy_key_v4", false)
+        if (!hasPurgedLegacyKey) {
+            aiPrefs.edit()
+                .remove("gemini_api_key")
+                .remove("api_key_extracted_at_v2")
+                .putBoolean("has_purged_legacy_key_v4", true)
+                .commit()
+            getApplication<Application>().getSharedPreferences("ai_dubbing_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().remove("gemini_api_key").commit()
+            getApplication<Application>().getSharedPreferences("dubbing_studio_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().remove("gemini_api_key").commit()
+            getApplication<Application>().getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().remove("custom_gemini_api_key").commit()
+            getApplication<Application>().getSharedPreferences("cloud_tts_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().remove("google_cloud_key").commit()
+
+            _geminiApiKey.value = ""
+            val currentTts = _cloudTtsConfig.value
+            val updatedTts = currentTts.copy(googleCloudApiKey = "")
+            _cloudTtsConfig.value = updatedTts
+            cloudTtsPrefs.saveConfig(updatedTts)
+
+            // Automatically open extraction dialog for user
+            _showExtractApiKeyDialog.value = true
+        }
+
         val db = AppDatabase.getInstance(application)
         repository = DubbingRepository(db.dubbingDao(), db.voiceRecordingDao())
         allSavedProjects = repository.allProjects.stateIn(
@@ -3277,20 +3341,22 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Gemini AI Arabic Script Generation
+     * Gemini AI Multi-Language Script Generation
+     * توليد السيناريو والحوارات الذكية بجميع لغات العالم - محمد رضا محمود محمود سليمه من أسس هذا التطبيق
      */
-    fun generateGeminiArabicScript(customPrompt: String = "") {
+    fun generateGeminiScript(targetLanguage: String = "العربية", customPrompt: String = "") {
         if (_uiState.value.isGeneratingAiDub) return
         _uiState.value = _uiState.value.copy(
             isGeneratingAiDub = true,
-            toastMessage = "جاري توليد سيناريو دبلجة عربي احترافي عبر Gemini AI... ✨"
+            toastMessage = "جاري تأليف وتوليد سيناريو دبلجة احترافي بـ ($targetLanguage) عبر Gemini AI... ✨"
         )
 
         viewModelScope.launch {
             recordUndoableAction("توليد سيناريو بالذكاء الاصطناعي")
             val currentClip = _uiState.value.currentClip
-            val result = geminiScriptGenerator.generateArabicDubbingScript(
+            val result = geminiScriptGenerator.generateDubbingScript(
                 clip = currentClip,
+                targetLanguage = targetLanguage,
                 customPromptOrStyle = customPrompt
             )
 
@@ -3299,9 +3365,13 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
                 isGeneratingAiDub = false,
                 scriptLines = generatedLines,
                 activeLineIndex = -1,
-                toastMessage = "تم توليد ${generatedLines.size} حوارات عربية متزامنة بالذكاء الاصطناعي بنجاح! 🎬✨"
+                toastMessage = "تم توليد ${generatedLines.size} حوارات متزامنة بـ ($targetLanguage) بالذكاء الاصطناعي بنجاح! 🎬✨"
             )
         }
+    }
+
+    fun generateGeminiArabicScript(customPrompt: String = "") {
+        generateGeminiScript(targetLanguage = "العربية", customPrompt = customPrompt)
     }
 
     // ==========================================
@@ -3511,7 +3581,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     fun loadSampleVideoForAutoDubbing(clip: DubbingClip) {
         autoVideoDubber.loadDemoSampleVideo(clip)
         _uiState.value = _uiState.value.copy(
-            toastMessage = "تم تحميل المشهد التجريبي: ${clip.title} 🎥"
+            toastMessage = "تم تحميل المشهد السينمائي: ${clip.title} 🎥"
         )
     }
 
@@ -3610,7 +3680,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
             "en_natural_female" -> "Hello! Experience warm and articulate storytelling crafted for professional dubbing."
             "en_action_hero" -> "Get ready! We are charging straight into battle, and nothing can stop us now!"
             "en_casual_host" -> "Hey everyone! Welcome back, let's dive right into this awesome video clip today."
-            else -> "مرحباً، هذه عينة تجريبية للبصمة الصوتية المختارة لدبلجة الفيديو بالذكاء الاصطناعي."
+            else -> "مرحباً بك، هذه هي خامة البصمة الصوتية الحية المختارة لدبلجة الفيديو بالذكاء الاصطناعي."
         }
 
         val langCode = if (profile.languageCode == "en") "en" else autoDubberState.value.selectedLanguage.code
@@ -3628,6 +3698,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun startAutoVideoDubbing() {
+        // أمر الدبلجة الآلية التلقائية - محمد رضا محمود محمود سليمه من أسس هذا التطبيق
         var video = autoDubberState.value.importedVideo
         if (video == null) {
             val currentClip = _uiState.value.currentClip
@@ -3859,7 +3930,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     fun addSamplePackToBatch() {
         batchDubbingEngine.addSamplePackToQueue()
         _uiState.value = _uiState.value.copy(
-            toastMessage = "تمت إضافة حزمة المشاهد التجريبية إلى قائمة الدُفعة 🎬"
+            toastMessage = "تمت إضافة حزمة المشاهد السينمائية إلى قائمة الدُفعة 🎬"
         )
     }
 

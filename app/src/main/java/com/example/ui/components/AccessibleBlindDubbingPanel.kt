@@ -220,7 +220,7 @@ fun AccessibleBlindDubbingPanel(
                             speak(
                                 "مرحباً بك في استوديو الدبلجة الميسر. إليك الخطوات بالترتيب: " +
                                         "أولاً: بطاقة المشهد الحالي، اضغط عليها لتغيير المشهد أو استيراد فيديو. " +
-                                        "ثانياً: بطاقة صوت الدبلجة، اضغط عليها لاختيار صوت ذكاء اصطناعي أو استيراد ملف صوتي أو تجربة عينة جاهزة. " +
+                                        "ثانياً: بطاقة صوت الدبلجة، اضغط عليها لاختيار صوت ذكاء اصطناعي أو استيراد ملف صوتي حقيقي أو تسجيل بصوتك. " +
                                         "ثالثاً: زر التشغيل الأخضر الكبير لمعاينة المشهد مع الصوت المدبلج وسماعه فوراً. " +
                                         "رابعاً: زر الحفظ والتصدير لحفظ الفيديو النهائي في جهازك. استمتع بدبلجة فيديوهاتك بكل سهولة!"
                             )
@@ -724,7 +724,7 @@ fun AccessibleBlindDubbingPanel(
                             if (hasRecordedAudio) {
                                 speak("الخطوة الثانية: صوت الدبلجة جاهز ومدرج في المشروع ومستعد للمعاينة والتصدير.")
                             } else {
-                                speak("الخطوة الثانية: لا يوجد صوت مدبلج حالياً. اختر استيراد ملف صوتي، أو توليد صوت بالذكاء الاصطناعي، أو تحميل عينة جاهزة.")
+                                speak("الخطوة الثانية: لا يوجد صوت مدبلج حالياً. اختر استيراد ملف صوتي حقيقي، أو تسجيل صوتك مباشرة، أو توليد الدبلجة بالذكاء الاصطناعي.")
                             }
                         }
                     ) {
@@ -751,25 +751,21 @@ fun AccessibleBlindDubbingPanel(
                                     Text("رفع صوت من الجهاز", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
 
-                                // Load Ready Sample Audio
+                                // Direct Voice Recording Button
                                 FilledTonalButton(
                                     onClick = {
-                                        val sampleFile = File(context.cacheDir, "sample_blind_dub.wav")
-                                        if (!sampleFile.exists()) {
-                                            sampleFile.writeBytes(ByteArray(8192))
-                                        }
-                                        viewModel.applyVoiceRecordingToStudio(sampleFile.absolutePath)
-                                        speak("تم بنجاح تحميل عينة صوتية فصيحة جاهزة ومزامنتها مع المشهد.")
+                                        speak("بدء التسجيل الصوتي المباشر للمشهد عبر الميكروفون")
+                                        viewModel.startRecordingCountdown()
                                     },
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(52.dp)
-                                        .testTag("blind_sample_audio_btn")
+                                        .testTag("blind_record_audio_btn")
                                 ) {
-                                    Icon(Icons.Default.MusicNote, contentDescription = null)
+                                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null)
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("عينة صوتية جاهزة", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("تسجيل صوتي حي 🎙️", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 

@@ -248,7 +248,203 @@ enum class DubbingTargetLanguage(
         nativeName = "اردو",
         flagEmoji = "🇵🇰",
         descriptionArabic = "دبلجة بالأوردية بنبرة تعبيرية وشاعرية فصيحة"
-    )
+    ),
+    DUTCH(
+        code = "nl",
+        displayNameArabic = "الهولندية (Nederlands)",
+        nativeName = "Nederlands",
+        flagEmoji = "🇳🇱",
+        descriptionArabic = "دبلجة بالهولندية بنبرة متوازنة وواضحة"
+    ),
+    POLISH(
+        code = "pl",
+        displayNameArabic = "البولندية (Polski)",
+        nativeName = "Polski",
+        flagEmoji = "🇵🇱",
+        descriptionArabic = "دبلجة بالبولندية بمخارج صوتية سينمائية قوية"
+    ),
+    SWEDISH(
+        code = "sv",
+        displayNameArabic = "السويدية (Svenska)",
+        nativeName = "Svenska",
+        flagEmoji = "🇸🇪",
+        descriptionArabic = "دبلجة بالسويدية بنبرة نوردية هادئة وطبيعية"
+    ),
+    UKRAINIAN(
+        code = "uk",
+        displayNameArabic = "الأوكرانية (Українська)",
+        nativeName = "Українська",
+        flagEmoji = "🇺🇦",
+        descriptionArabic = "دبلجة بالأوكرانية بنبرة معبرة وحيوية"
+    ),
+    GREEK(
+        code = "el",
+        displayNameArabic = "اليونانية (Ελληνικά)",
+        nativeName = "Ελληνικά",
+        flagEmoji = "🇬🇷",
+        descriptionArabic = "دبلجة باليونانية بنطق أصيل وواضح"
+    ),
+    VIETNAMESE(
+        code = "vi",
+        displayNameArabic = "الفيتنامية (Tiếng Việt)",
+        nativeName = "Tiếng Việt",
+        flagEmoji = "🇻🇳",
+        descriptionArabic = "دبلجة بالفيتنامية بنغمات صوتية دقيقة"
+    ),
+    THAI(
+        code = "th",
+        displayNameArabic = "التايلاندية (ไทย)",
+        nativeName = "ไทย",
+        flagEmoji = "🇹🇭",
+        descriptionArabic = "دبلجة بالتايلاندية بنبرة لطيفة وسلسة"
+    ),
+    FILIPINO(
+        code = "fil",
+        displayNameArabic = "الفلبينية (Tagalog)",
+        nativeName = "Tagalog",
+        flagEmoji = "🇵🇭",
+        descriptionArabic = "دبلجة بالفلبينية بنبرة دافئة ومعبرة"
+    ),
+    HEBREW(
+        code = "he",
+        displayNameArabic = "العبرية (עבריت)",
+        nativeName = "עברית",
+        flagEmoji = "🇮🇱",
+        descriptionArabic = "دبلجة بالعبرية بنبرة واضحة ومخارج صوتية دقيقة"
+    ),
+    BENGALI(
+        code = "bn",
+        displayNameArabic = "البنغالية (বাংলা)",
+        nativeName = "বাংলা",
+        flagEmoji = "🇧🇩",
+        descriptionArabic = "دبلجة بالبنغالية بإيقاع سلس وأدبي عريق"
+    ),
+    MALAY(
+        code = "ms",
+        displayNameArabic = "الملايوية (Bahasa Melayu)",
+        nativeName = "Bahasa Melayu",
+        flagEmoji = "🇲🇾",
+        descriptionArabic = "دبلجة بالملايوية بأسلوب واضح ومفهوم"
+    ),
+    CZECH(
+        code = "cs",
+        displayNameArabic = "التشيكية (Čeština)",
+        nativeName = "Čeština",
+        flagEmoji = "🇨🇿",
+        descriptionArabic = "دبلجة بالتشيكية بدقة نطق سينمائية"
+    ),
+    ROMANIAN(
+        code = "ro",
+        displayNameArabic = "الرومانية (Română)",
+        nativeName = "Română",
+        flagEmoji = "🇷🇴",
+        descriptionArabic = "دبلجة بالرومانية بنبرة لاتينية متناغمة"
+    ),
+    DANISH(
+        code = "da",
+        displayNameArabic = "الدانماركية (Dansk)",
+        nativeName = "Dansk",
+        flagEmoji = "🇩🇰",
+        descriptionArabic = "دبلجة بالدانماركية بنبرة طبيعية وأنيقة"
+    ),
+    FINNISH(
+        code = "fi",
+        displayNameArabic = "الفنلندية (Suomi)",
+        nativeName = "Suomi",
+        flagEmoji = "🇫🇮",
+        descriptionArabic = "دبلجة بالفنلندية بوضوح صوتي متميز"
+    ),
+    NORWEGIAN(
+        code = "no",
+        displayNameArabic = "النرويجية (Norsk)",
+        nativeName = "Norsk",
+        flagEmoji = "🇳🇴",
+        descriptionArabic = "دبلجة بالنرويجية بإيقاع اسكندنافي متناسق"
+    ),
+    HUNGARIAN(
+        code = "hu",
+        displayNameArabic = "المجرية (Magyar)",
+        nativeName = "Magyar",
+        flagEmoji = "🇭🇺",
+        descriptionArabic = "دبلجة بالمجرية بنبرة فريدة ومؤثرة"
+    ),
+    SWAHILI(
+        code = "sw",
+        displayNameArabic = "السواحيلية (Kiswahili)",
+        nativeName = "Kiswahili",
+        flagEmoji = "🇰🇪",
+        descriptionArabic = "دبلجة بالسواحيلية بنبرة أفريقية أصيلة وحيوية"
+    ),
+    AMHARIC("am", "الأمهرية (Amharic)", "አማርኛ", "🇪🇹", "دبلجة بالأمهرية بنطق أصيل وواضح"),
+    SOMALI("so", "الصومالية (Somali)", "Soomaali", "🇸🇴", "دبلجة بالصومالية بنبرة سردية مؤثرة"),
+    HAUSA("ha", "الهوسا (Hausa)", "Harshen Hausa", "🇳🇬", "دبلجة بالهوسا بإيقاع حيوي فصيح"),
+    YORUBA("yo", "اليوروبا (Yoruba)", "Èdè Yorùbá", "🇳🇬", "دبلجة باليوروبا بنبرة صوتية أصيلة"),
+    IGBO("ig", "الإيغبو (Igbo)", "Asụsụ Igbo", "🇳🇬", "دبلجة بالإيغبو بمخارج صوتية دقيقة"),
+    OROMO("om", "الأورومو (Oromo)", "Afaan Oromoo", "🇪🇹", "دبلجة بالأورومو بنبرة فصيحة"),
+    TIGRINYA("ti", "التغرينية (Tigrinya)", "ትግርኛ", "🇪🇷", "دبلجة بالتغرينية بنبرة معبرة"),
+    ZULU("zu", "الزولو (Zulu)", "isiZulu", "🇿🇦", "دبلجة بالزولو بنبرة قوية وحماسية"),
+    XHOSA("xh", "الخوسا (Xhosa)", "isiXhosa", "🇿🇦", "دبلجة بالخوسا بمخارج صوتية مميزة"),
+    AFRIKAANS("af", "الأفريقانية (Afrikaans)", "Afrikaans", "🇿🇦", "دبلجة بالأفريقانية بنبرة سينمائية"),
+    MALAGASY("mg", "الملغاشية (Malagasy)", "Malagasy", "🇲🇬", "دبلجة بالملغاشية بأسلوب سلس"),
+    CATALAN("ca", "الكتالونية (Catalan)", "Català", "🇪🇸", "دبلجة بالكتالونية بنبرة لاتينية متناغمة"),
+    BASQUE("eu", "الباسكية (Basque)", "Euskara", "🇪🇸", "دبلجة بالباسكية بنطق أصيل وفريد"),
+    GALICIAN("gl", "الجاليكية (Galician)", "Galego", "🇪🇸", "دبلجة بالجاليكية بنبرة شعرية عذبة"),
+    IRISH("ga", "الأيرلندية (Irish)", "Gaeilge", "🇮🇪", "دبلجة بالأيرلندية بنبرة سلتية أصيلة"),
+    WELSH("cy", "الويلزية (Welsh)", "Cymraeg", "🏴󠁧󠁢󠁷󠁬󠁳󠁿", "دبلجة بالويلزية بإيقاع فريد"),
+    ICELANDIC("is", "الأيسلندية (Icelandic)", "Íslenska", "🇮🇸", "دبلجة بالأيسلندية بنبرة نوردية عريقة"),
+    MALTESE("mt", "المالطية (Maltese)", "Malti", "🇲🇹", "دبلجة بالمالطية بنبرة متوسطية متوازنة"),
+    CROATIAN("hr", "الكرواتية (Croatian)", "Hrvatski", "🇭🇷", "دبلجة بالكرواتية بنطق متقن"),
+    SERBIAN("sr", "الصربية (Serbian)", "Српски", "🇷🇸", "دبلجة بالصربية بنبرة سردية فخمة"),
+    BOSNIAN("bs", "البوسنية (Bosnian)", "Bosanski", "🇧🇦", "دبلجة بالبوسنية بنبرة معبرة ودافئة"),
+    BULGARIAN("bg", "البلغارية (Bulgarian)", "Български", "🇧🇬", "دبلجة بالبلغارية بمخارج صوتية واضحة"),
+    SLOVAK("sk", "السلوفاكية (Slovak)", "Slovenčina", "🇸🇰", "دبلجة بالسلوفاكية بنبرة طبيعية"),
+    SLOVENIAN("sl", "السلوفينية (Slovenian)", "Slovenščina", "🇸🇮", "دبلجة بالسلوفينية بدقة نطق متوازنة"),
+    MACEDONIAN("mk", "المقدونية (Macedonian)", "Македонски", "🇲🇰", "دبلجة بالمقدونية بنبرة سينمائية"),
+    ALBANIAN("sq", "الألبانية (Albanian)", "Shqip", "🇦🇱", "دبلجة بالألبانية بمخارج صوتية دقيقة"),
+    LITHUANIAN("lt", "الليتوانية (Lithuanian)", "Lietuvių", "🇱🇹", "دبلجة بالليتوانية بنبرة هادئة ورصينة"),
+    LATVIAN("lv", "اللاتفية (Latvian)", "Latviešu", "🇱🇻", "دبلجة باللاتفية بنطق متناسق"),
+    ESTONIAN("et", "الإستونية (Estonian)", "Eesti", "🇪🇪", "دبلجة بالإستونية بإيقاع ناعم"),
+    BELARUSIAN("be", "البيلاروسية (Belarusian)", "Беларуская", "🇧🇾", "دبلجة بالبيلاروسية بنبرة معبرة"),
+    KAZAKH("kk", "الكازاخية (Kazakh)", "Қазақша", "🇰🇿", "دبلجة بالكازاخية بنبرة حماسية قوية"),
+    UZBEK("uz", "الأوزبكية (Uzbek)", "Oʻzbekcha", "🇺🇿", "دبلجة بالأوزبكية بأسلوب سردي فخم"),
+    AZERBAIJANI("az", "الأذربيجانية (Azerbaijani)", "Azərbaycan", "🇦🇿", "دبلجة بالأذربيجانية بنبرة شعرية غنية"),
+    GEORGIAN("ka", "الجورجية (Georgian)", "ქართული", "🇬🇪", "دبلجة بالجورجية بنبرة قوقازية مميزة"),
+    ARMENIAN("hy", "الأرمينية (Armenian)", "Հայերեն", "🇦🇲", "دبلجة بالأرمينية بنطق أصيل وعميق"),
+    MONGOLIAN("mn", "المنغولية (Mongolian)", "Монгол", "🇲🇳", "دبلجة بالمنغولية بنبرة مهيبة"),
+    TURKMEN("tk", "التركمانية (Turkmen)", "Türkmençe", "🇹🇲", "دبلجة بالتركمانية بنبرة واضحة"),
+    TAJIK("tg", "الطاجيكية (Tajik)", "Тоҷикӣ", "🇹🇯", "دبلجة بالطاجيكية بنبرة أدبية رصينة"),
+    KURDISH("ku", "الكردية (Kurdish)", "کوردی", "🇮🇶", "دبلجة بالكردية بنبرة حماسية دافئة"),
+    PASHTO("ps", "البشتوية (Pashto)", "پښتو", "🇦🇫", "دبلجة بالبشتوية بمخارج صوتية قوية"),
+    TAMIL("ta", "التاميلية (Tamil)", "தமிழ்", "🇮🇳", "دبلجة بالتاميلية بإيقاع أدبي عريق"),
+    TELUGU("te", "التيلوغوية (Telugu)", "తెలుగు", "🇮🇳", "دبلجة بالتيلوغوية بنبرة سينمائية حيوية"),
+    MARATHI("mr", "المراثية (Marathi)", "मराठी", "🇮🇳", "دبلجة بالمراثية بوضوح وإتقان"),
+    GUJARATI("gu", "الغوجاراتية (Gujarati)", "ગુજરાતી", "🇮🇳", "دبلجة بالغوجاراتية بنبرة معبرة"),
+    KANNADA("kn", "الكانادا (Kannada)", "ಕನ್ನಡ", "🇮🇳", "دبلجة بالكانادا بمخارج صوتية دقيقة"),
+    MALAYALAM("ml", "المالايالامية (Malayalam)", "മലയാളം", "🇮🇳", "دبلجة بالمالايالامية بنبرة انسيابية"),
+    PUNJABI("pa", "البنجابية (Punjabi)", "ਪੰਜਾਬੀ", "🇮🇳", "دبلجة بالبنجابية بإيقاع حماسي نابض"),
+    SINHALA("si", "السنهالية (Sinhala)", "සිංහල", "🇱🇰", "دبلجة بالسنهالية بنبرة دافئة وواضحة"),
+    NEPALI("ne", "النيبالية (Nepali)", "नेपाली", "🇳🇵", "دبلجة بالنيبالية بنبرة هادئة ورصينة"),
+    BURMESE("my", "البورمية (Burmese)", "မြန်မာစာ", "🇲🇲", "دبلجة بالبورمية بنغمات صوتية دقيقة"),
+    KHMER("km", "الخميرية (Khmer)", "ភាសាខ្មែរ", "🇰🇭", "دبلجة بالخميرية بإيقاع ناعم وسلس"),
+    LAO("lo", "اللاوية (Lao)", "ພາສາລາວ", "🇱🇦", "دبلجة باللاوية بنبرة لطيفة ومتزنة"),
+    JAVANESE("jv", "الجاوية (Javanese)", "Basa Jawa", "🇮🇩", "دبلجة بالجاوية بأسلوب سردي تراثي عريق"),
+    SUNDANESE("su", "السوندية (Sundanese)", "Basa Sunda", "🇮🇩", "دبلجة بالسوندية بنبرة هادئة وسلسة"),
+    CEBUANO("ceb", "السيبوانية (Cebuano)", "Sinugboanon", "🇵🇭", "دبلجة بالسيبوانية بنبرة معبرة وواضحة"),
+    ESPERANTO("eo", "الإسبرانتو (Esperanto)", "Esperanto", "🌐", "دبلجة باللغة العالمية الموحدة بإتقان تام"),
+    LATIN("la", "اللاتينية (Latin)", "Latina", "🏛️", "دبلجة باللاتينية الكلاسيكية للأفلام التاريخية والملحمية"),
+    YIDDISH("yi", "اليديشية (Yiddish)", "ייִדיש", "✡️", "دبلجة باليديشية بطابع سردي أصيل");
+
+    companion object {
+        fun searchLanguages(query: String): List<DubbingTargetLanguage> {
+            if (query.isBlank()) return entries
+            val q = query.trim().lowercase()
+            return entries.filter {
+                it.code.lowercase().contains(q) ||
+                it.displayNameArabic.lowercase().contains(q) ||
+                it.nativeName.lowercase().contains(q)
+            }
+        }
+    }
 }
 
 enum class DubbingPacing(

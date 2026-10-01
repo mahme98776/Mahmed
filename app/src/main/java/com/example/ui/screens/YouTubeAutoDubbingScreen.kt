@@ -255,7 +255,7 @@ fun YouTubeAutoDubbingScreen(
 
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        text = "أو اختر عينة مقطع للتجربة الفورية:",
+                        text = "مقاطع وثائقية وسينمائية مقترحة للدبلجة:",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

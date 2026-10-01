@@ -7,8 +7,7 @@ object WebPortalHtmlTemplates {
 
     const val PLATFORM_DOMAIN = "voicemaster.org"
     const val PLATFORM_NAME = "فويس ماستر برو | VoiceMaster Pro"
-    const val COPYRIGHT_HOLDER = "محمد رضا محمود محمود السيد سليمة"
-    const val COPYRIGHT_ADDRESS = "جمهورية مصر العربية - محافظة المنوفية - مركز شبين الكوم - شارع القفاص"
+    const val COPYRIGHT_HOLDER = "محمد رضا محمود محمود سليمه"
 
     fun generateUserPortalHtml(
         latestRelease: AppRelease,
@@ -525,10 +524,10 @@ object WebPortalHtmlTemplates {
             <div class="ip-info">
                 <h4>وثيقة حقوق الملكية الفكرية والنشر الحصرية © 2026</h4>
                 <p>
-                    هذا التطبيق ومنصة التوزيع <strong>$PLATFORM_DOMAIN</strong> مصممة ومطورة بالكامل بملكية فكرية خالصة للمطور والمهندس: 
+                    هذا التطبيق ومنصة التوزيع <strong>$PLATFORM_DOMAIN</strong> مصممة ومطورة بالكامل بملكية فكرية خالصة للمؤسس والمبتكر: 
                     <span class="ip-author-highlight">$COPYRIGHT_HOLDER</span>
                     <br>
-                    📍 العنوان: $COPYRIGHT_ADDRESS. جميع حقوق النشر، الشيفرات البرمجية، وخوارزميات الدبلجة الصوتية محفوظة قانونياً ودولياً.
+                    محمد رضا محمود محمود سليمه من أسس هذا التطبيق. جميع حقوق النشر، الشيفرات البرمجية، وخوارزميات الدبلجة الصوتية محفوظة قانونياً ودولياً.
                 </p>
             </div>
         </div>
@@ -574,8 +573,7 @@ object WebPortalHtmlTemplates {
         <!-- Legal Footer -->
         <div class="footer">
             <div class="footer-copyright">جميع حقوق الملكية الفكرية والنشر محفوظة © 2026 لتطبيق $PLATFORM_NAME</div>
-            <div class="footer-author">المالك والمؤلف: $COPYRIGHT_HOLDER</div>
-            <div class="footer-location">العنوان: $COPYRIGHT_ADDRESS</div>
+            <div class="footer-author">المالك والمؤسس: $COPYRIGHT_HOLDER (محمد رضا محمود محمود سليمه من أسس هذا التطبيق)</div>
         </div>
 
     </div>

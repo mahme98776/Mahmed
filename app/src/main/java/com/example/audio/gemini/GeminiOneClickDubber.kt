@@ -52,7 +52,100 @@ enum class DubbingTargetLanguage(
     JAPANESE("ja", "اليابانية (日本語)", "🇯🇵", Locale.JAPANESE),
     KOREAN("ko", "الكورية (한국어)", "🇰🇷", Locale.KOREAN),
     ITALIAN("it", "الإيطالية (Italiano)", "🇮🇹", Locale.ITALIAN),
-    RUSSIAN("ru", "الروسية (Русский)", "🇷🇺", Locale("ru"))
+    RUSSIAN("ru", "الروسية (Русский)", "🇷🇺", Locale("ru")),
+    CHINESE("zh", "الصينية (中文)", "🇨🇳", Locale.CHINESE),
+    PORTUGUESE("pt", "البرتغالية (Português)", "🇧🇷", Locale("pt", "BR")),
+    HINDI("hi", "الهندية (हिन्दी)", "🇮🇳", Locale("hi", "IN")),
+    INDONESIAN("id", "الإندونيسية (Bahasa)", "🇮🇩", Locale("id", "ID")),
+    PERSIAN("fa", "الفارسية (فارسی)", "🇮🇷", Locale("fa", "IR")),
+    URDU("ur", "الأوردية (اردو)", "🇵🇰", Locale("ur", "PK")),
+    DUTCH("nl", "الهولندية (Nederlands)", "🇳🇱", Locale("nl", "NL")),
+    POLISH("pl", "البولندية (Polski)", "🇵🇱", Locale("pl", "PL")),
+    SWEDISH("sv", "السويدية (Svenska)", "🇸🇪", Locale("sv", "SE")),
+    UKRAINIAN("uk", "الأوكرانية (Українська)", "🇺🇦", Locale("uk", "UA")),
+    GREEK("el", "اليونانية (Ελληνικά)", "🇬🇷", Locale("el", "GR")),
+    VIETNAMESE("vi", "الفيتنامية (Tiếng Việt)", "🇻🇳", Locale("vi", "VN")),
+    THAI("th", "التايلاندية (ไทย)", "🇹🇭", Locale("th", "TH")),
+    FILIPINO("fil", "الفلبينية (Tagalog)", "🇵🇭", Locale("fil", "PH")),
+    HEBREW("he", "العبرية (עברית)", "🇮🇱", Locale("he", "IL")),
+    BENGALI("bn", "البنغالية (বাংলা)", "🇧🇩", Locale("bn", "BD")),
+    MALAY("ms", "الملايوية (Bahasa Melayu)", "🇲🇾", Locale("ms", "MY")),
+    CZECH("cs", "التشيكية (Čeština)", "🇨🇿", Locale("cs", "CZ")),
+    ROMANIAN("ro", "الرومانية (Română)", "🇷🇴", Locale("ro", "RO")),
+    DANISH("da", "الدانماركية (Dansk)", "🇩🇰", Locale("da", "DK")),
+    FINNISH("fi", "الفنلندية (Suomi)", "🇫🇮", Locale("fi", "FI")),
+    NORWEGIAN("no", "النرويجية (Norsk)", "🇳🇴", Locale("no", "NO")),
+    HUNGARIAN("hu", "المجرية (Magyar)", "🇭🇺", Locale("hu", "HU")),
+    SWAHILI("sw", "السواحيلية (Kiswahili)", "🇰🇪", Locale("sw", "KE")),
+    AMHARIC("am", "الأمهرية (Amharic)", "🇪🇹", Locale("am")),
+    SOMALI("so", "الصومالية (Somali)", "🇸🇴", Locale("so")),
+    HAUSA("ha", "الهوسا (Hausa)", "🇳🇬", Locale("ha")),
+    YORUBA("yo", "اليوروبا (Yoruba)", "🇳🇬", Locale("yo")),
+    IGBO("ig", "الإيغبو (Igbo)", "🇳🇬", Locale("ig")),
+    OROMO("om", "الأورومو (Oromo)", "🇪🇹", Locale("om")),
+    TIGRINYA("ti", "التغرينية (Tigrinya)", "🇪🇷", Locale("ti")),
+    ZULU("zu", "الزولو (Zulu)", "🇿🇦", Locale("zu")),
+    XHOSA("xh", "الخوسا (Xhosa)", "🇿🇦", Locale("xh")),
+    AFRIKAANS("af", "الأفريقانية (Afrikaans)", "🇿🇦", Locale("af")),
+    MALAGASY("mg", "الملغاشية (Malagasy)", "🇲🇬", Locale("mg")),
+    CATALAN("ca", "الكتالونية (Catalan)", "🇪🇸", Locale("ca")),
+    BASQUE("eu", "الباسكية (Basque)", "🇪🇸", Locale("eu")),
+    GALICIAN("gl", "الجاليكية (Galician)", "🇪🇸", Locale("gl")),
+    IRISH("ga", "الأيرلندية (Irish)", "🇮🇪", Locale("ga")),
+    WELSH("cy", "الويلزية (Welsh)", "🏴󠁧󠁢󠁷󠁬󠁳󠁿", Locale("cy")),
+    ICELANDIC("is", "الأيسلندية (Icelandic)", "🇮🇸", Locale("is")),
+    MALTESE("mt", "المالطية (Maltese)", "🇲🇹", Locale("mt")),
+    CROATIAN("hr", "الكرواتية (Croatian)", "🇭🇷", Locale("hr")),
+    SERBIAN("sr", "الصربية (Serbian)", "🇷🇸", Locale("sr")),
+    BOSNIAN("bs", "البوسنية (Bosnian)", "🇧🇦", Locale("bs")),
+    BULGARIAN("bg", "البلغارية (Bulgarian)", "🇧🇬", Locale("bg")),
+    SLOVAK("sk", "السلوفاكية (Slovak)", "🇸🇰", Locale("sk")),
+    SLOVENIAN("sl", "السلوفينية (Slovenian)", "🇸🇮", Locale("sl")),
+    MACEDONIAN("mk", "المقدونية (Macedonian)", "🇲🇰", Locale("mk")),
+    ALBANIAN("sq", "الألبانية (Albanian)", "🇦🇱", Locale("sq")),
+    LITHUANIAN("lt", "الليتوانية (Lithuanian)", "🇱🇹", Locale("lt")),
+    LATVIAN("lv", "اللاتفية (Latvian)", "🇱🇻", Locale("lv")),
+    ESTONIAN("et", "الإستونية (Estonian)", "🇪🇪", Locale("et")),
+    BELARUSIAN("be", "البيلاروسية (Belarusian)", "🇧🇾", Locale("be")),
+    KAZAKH("kk", "الكازاخية (Kazakh)", "🇰🇿", Locale("kk")),
+    UZBEK("uz", "الأوزبكية (Uzbek)", "🇺🇿", Locale("uz")),
+    AZERBAIJANI("az", "الأذربيجانية (Azerbaijani)", "🇦🇿", Locale("az")),
+    GEORGIAN("ka", "الجورجية (Georgian)", "🇬🇪", Locale("ka")),
+    ARMENIAN("hy", "الأرمينية (Armenian)", "🇦🇲", Locale("hy")),
+    MONGOLIAN("mn", "المنغولية (Mongolian)", "🇲🇳", Locale("mn")),
+    TURKMEN("tk", "التركمانية (Turkmen)", "🇹🇲", Locale("tk")),
+    TAJIK("tg", "الطاجيكية (Tajik)", "🇹🇯", Locale("tg")),
+    KURDISH("ku", "الكردية (Kurdish)", "🇮🇶", Locale("ku")),
+    PASHTO("ps", "البشتوية (Pashto)", "🇦🇫", Locale("ps")),
+    TAMIL("ta", "التاميلية (Tamil)", "🇮🇳", Locale("ta")),
+    TELUGU("te", "التيلوغوية (Telugu)", "🇮🇳", Locale("te")),
+    MARATHI("mr", "المراثية (Marathi)", "🇮🇳", Locale("mr")),
+    GUJARATI("gu", "الغوجاراتية (Gujarati)", "🇮🇳", Locale("gu")),
+    KANNADA("kn", "الكانادا (Kannada)", "🇮🇳", Locale("kn")),
+    MALAYALAM("ml", "المالايالامية (Malayalam)", "🇮🇳", Locale("ml")),
+    PUNJABI("pa", "البنجابية (Punjabi)", "🇮🇳", Locale("pa")),
+    SINHALA("si", "السنهالية (Sinhala)", "🇱🇰", Locale("si")),
+    NEPALI("ne", "النيبالية (Nepali)", "🇳🇵", Locale("ne")),
+    BURMESE("my", "البورمية (Burmese)", "🇲🇲", Locale("my")),
+    KHMER("km", "الخميرية (Khmer)", "🇰🇭", Locale("km")),
+    LAO("lo", "اللاوية (Lao)", "🇱🇦", Locale("lo")),
+    JAVANESE("jv", "الجاوية (Javanese)", "🇮🇩", Locale("jv")),
+    SUNDANESE("su", "السوندية (Sundanese)", "🇮🇩", Locale("su")),
+    CEBUANO("ceb", "السيبوانية (Cebuano)", "🇵🇭", Locale("ceb")),
+    ESPERANTO("eo", "الإسبرانتو (Esperanto)", "🌐", Locale("eo")),
+    LATIN("la", "اللاتينية (Latin)", "🏛️", Locale("la")),
+    YIDDISH("yi", "اليديشية (Yiddish)", "✡️", Locale("yi"));
+
+    companion object {
+        fun searchLanguages(query: String): List<DubbingTargetLanguage> {
+            if (query.isBlank()) return entries
+            val q = query.trim().lowercase()
+            return entries.filter {
+                it.languageCode.lowercase().contains(q) ||
+                it.displayNameArabic.lowercase().contains(q)
+            }
+        }
+    }
 }
 
 data class GeminiApiDiagnosticResult(
@@ -147,7 +240,8 @@ class GeminiOneClickDubber(
         return lower.contains("your_api_key") ||
                 lower.contains("my_gemini_api_key") ||
                 lower == "null" ||
-                key == "AQ.Ab8RN6KgYBCKjgE9alN3jLNuL5Wm1qx-U9BIu6DioS1zBQNezw" // Expired sample token
+                key.startsWith("AQ.Ab8") ||
+                key.isBlank()
     }
 
     /**

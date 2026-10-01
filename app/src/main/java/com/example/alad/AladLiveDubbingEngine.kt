@@ -43,11 +43,6 @@ class AladLiveDubbingEngine(
     private val _audioSourceMode = MutableStateFlow(AladAudioSource.INTERNAL_AND_MIC)
     val audioSourceMode: StateFlow<AladAudioSource> = _audioSourceMode.asStateFlow()
 
-    private val _isDemoSimulationRunning = MutableStateFlow(false)
-    val isDemoSimulationRunning: StateFlow<Boolean> = _isDemoSimulationRunning.asStateFlow()
-
-    private var simulationJob: Job? = null
-
     enum class AladAudioSource(val titleArabic: String, val descArabic: String) {
         INTERNAL_AND_MIC("التقاط صوت النظام الداخلي + الميكروفون", "يدبلج التطبيقات الخارجية مباشرة مثل يوتيوب ونتفليكس مع عزل الضوضاء"),
         MIC_ONLY("الميكروفون عالي النقاء فقط", "لالتقاط صوت السماعة الخارجية أو المكالمات والغرف الصوتية")
@@ -66,7 +61,7 @@ class AladLiveDubbingEngine(
     }
 
     /**
-     * Start live AI audio dubbing session
+     * Start real live AI audio dubbing session
      */
     fun startLiveDubbing(): Boolean {
         if (_isLiveDubbing.value) return true
@@ -80,50 +75,14 @@ class AladLiveDubbingEngine(
     }
 
     /**
-     * Stop live dubbing session
+     * Stop real live dubbing session
      */
     fun stopLiveDubbing() {
         _isLiveDubbing.value = false
         captureEngine.stopCapture()
         liveClient.stopSpeaking()
         duckingManager.release()
-        stopDemoSimulation()
         Log.d(tag, "ALAD Live Dubbing Stopped")
-    }
-
-    /**
-     * Runs a live interactive simulation of foreign audio stream (e.g., documentary / podcast in English)
-     * being translated and dubbed into the chosen target language with real-time ducking!
-     */
-    fun startDemoSimulation(customApiKey: String = "") {
-        if (_isDemoSimulationRunning.value) return
-        _isDemoSimulationRunning.value = true
-        _isLiveDubbing.value = true
-
-        val demoSentences = listOf(
-            "Welcome everyone to this live international documentary broadcast.",
-            "Today we are exploring advanced artificial intelligence and cyber security frontiers.",
-            "Our team is demonstrating real-time voice translation across seventy-eight languages.",
-            "Notice how the background audio automatically ducks whenever the dubbed voice speaks.",
-            "All intellectual property and publishing rights are protected for Mohamed Salima."
-        )
-
-        simulationJob = scope.launch(Dispatchers.IO) {
-            var index = 0
-            while (isActive && _isDemoSimulationRunning.value) {
-                val sentence = demoSentences[index % demoSentences.size]
-                liveClient.processLiveSpeechChunk(sentence, _targetLanguage.value, customApiKey)
-                index++
-                delay(4800L)
-            }
-        }
-    }
-
-    fun stopDemoSimulation() {
-        _isDemoSimulationRunning.value = false
-        simulationJob?.cancel()
-        simulationJob = null
-        liveClient.stopSpeaking()
     }
 
     fun release() {

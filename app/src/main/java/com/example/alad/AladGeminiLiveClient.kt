@@ -99,21 +99,24 @@ class AladGeminiLiveClient(
                 customApiKey = customApiKey
             )
             if (res.isSuccess) {
-                res.getOrNull()?.trim() ?: getSimulatedDubbedTranslation(originalText, targetLanguage)
+                res.getOrNull()?.trim() ?: ""
             } else {
-                getSimulatedDubbedTranslation(originalText, targetLanguage)
+                Log.w(tag, "Translation failed: ${res.exceptionOrNull()?.message}")
+                ""
             }
         } catch (e: Exception) {
             Log.e(tag, "Translation error", e)
-            getSimulatedDubbedTranslation(originalText, targetLanguage)
+            ""
         }
 
         val elapsed = System.currentTimeMillis() - startTime
         _liveLatencyMs.value = elapsed.coerceAtLeast(140L)
         _liveDubbedText.value = translationResult
 
-        // Speak the dubbed speech using TTS
-        speakDubbedText(translationResult, targetLanguage)
+        // Speak the dubbed speech using TTS only if real translated text exists
+        if (translationResult.isNotBlank()) {
+            speakDubbedText(translationResult, targetLanguage)
+        }
 
         translationResult
     }
@@ -149,24 +152,6 @@ class AladGeminiLiveClient(
             code.startsWith("hi") -> Locale("hi")
             code.startsWith("pt") -> Locale("pt")
             else -> Locale(code.split("-")[0])
-        }
-    }
-
-    private fun getSimulatedDubbedTranslation(original: String, targetLanguage: AladLanguage): String {
-        return when {
-            targetLanguage.code.startsWith("ar") -> {
-                if (original.contains("hello", ignoreCase = true) || original.contains("welcome", ignoreCase = true)) {
-                    "أهلاً وسهلاً بكم في البث المباشر والدوبلاج الفوري."
-                } else {
-                    "هذا البث المترجم فورياً عبر تقنية ALAD الذكية."
-                }
-            }
-            targetLanguage.code.startsWith("es") -> "Bienvenidos a la transmisión en vivo doblada por IA."
-            targetLanguage.code.startsWith("fr") -> "Bienvenue à la diffusion en direct doublée par IA."
-            targetLanguage.code.startsWith("de") -> "Willkommen zum Live-Streaming mit KI-Synchronisation."
-            targetLanguage.code.startsWith("ja") -> "AIライブ吹き替え配信へようこそ。"
-            targetLanguage.code.startsWith("tr") -> "Yapay zeka canlı dublaj yayınına hoş geldiniz."
-            else -> "Welcome to the live AI dubbed broadcast powered by ALAD Mobile."
         }
     }
 

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Info
@@ -105,7 +106,10 @@ fun FreeGeminiGuideSection(
 
     // Preferences & API Key state
     val appPrefs = remember { context.getSharedPreferences("app_ai_prefs", Context.MODE_PRIVATE) }
-    var currentApiKey by remember { mutableStateOf(aiClient.resolveApiKey()) }
+    var currentApiKey by remember {
+        val raw = aiClient.resolveApiKey()
+        mutableStateOf(if (raw.startsWith("AQ.Ab8") || raw == "MY_GEMINI_API_KEY") "" else raw)
+    }
     var apiKeyInput by remember { mutableStateOf(currentApiKey) }
     var isKeyVisible by remember { mutableStateOf(false) }
 
@@ -485,6 +489,27 @@ fun FreeGeminiGuideSection(
                             Spacer(Modifier.width(6.dp))
                             Text("فحص السرعة والاتصال")
                         }
+                    }
+                }
+
+                if (currentApiKey.isNotBlank() || apiKeyInput.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            appPrefs.edit().remove("gemini_api_key").apply()
+                            currentApiKey = ""
+                            apiKeyInput = ""
+                            pingResultText = null
+                            isPingSuccess = false
+                            Toast.makeText(context, "تم حذف ومسح المفتاح المسجل بنجاح 🗑️", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("حذف المفتاح المسجل نهائياً 🗑️", fontSize = 12.sp)
                     }
                 }
 

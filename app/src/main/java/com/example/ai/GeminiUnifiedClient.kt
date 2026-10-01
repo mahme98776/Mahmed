@@ -68,7 +68,8 @@ class GeminiUnifiedClient(private val context: Context) {
                 lower.contains("my_gemini_api_key") ||
                 lower.contains("your_api_key") ||
                 lower == "null" ||
-                key.isBlank()
+                key.isBlank() ||
+                key.startsWith("AQ.Ab8")
     }
 
     // =========================================================================
@@ -265,7 +266,7 @@ class GeminiUnifiedClient(private val context: Context) {
                 "$searchPrefix$mapsPrefix🎭 **توجيه إخراجي من VoiceMaster Pro:**\nبناءً على طلبك بخصوص: \"$prompt\"\n" +
                         "1. ننصح بضبط نبرة الصوت في المشهد لتكون دافئة مع مخارج واضحة ومسافات تنفس دقيقة.\n" +
                         "2. لمطابقة حركة الشفاه، اجعل بدايات الكلمات تتوافق مع حروف الإطباق (ب، م، ف).\n" +
-                        "3. يمكنك اختبار النبرة مباشرة في شاشة الاستوديو وتسجيل المسار التجريبي الآن."
+                        "3. يمكنك اختبار النبرة مباشرة في شاشة الاستوديو وتسجيل المسار الصوتي الآن."
             }
             SystemInstructionRole.SCREENWRITER -> {
                 "$searchPrefix$mapsPrefix✍️ **اقتراح السيناريو والحوار:**\nبخصوص: \"$prompt\"\n" +
@@ -487,23 +488,7 @@ class GeminiUnifiedClient(private val context: Context) {
         }
 
         if (apiKey.isBlank()) {
-            val sampleOriginal = "مرحباً بكم في استوديو فويس ماستر برو لتحويل وترجمة الصوت بالذكاء الاصطناعي."
-            val sampleTranslated = when(targetLanguage.lowercase()) {
-                "english" -> "Welcome to VoiceMaster Pro studio for AI voice transcription and translation."
-                "french" -> "Bienvenue au studio VoiceMaster Pro pour la transcription et la traduction vocale par IA."
-                "spanish" -> "Bienvenido al estudio VoiceMaster Pro para transcripción y traducción de voz por IA."
-                "german" -> "Willkommen im VoiceMaster Pro Studio für KI-Sprachtranskription und -übersetzung."
-                "japanese" -> "AI音声文字起こしと翻訳のためのVoiceMaster Proスタジオへようこそ。"
-                else -> "Welcome to VoiceMaster Pro ($targetLanguage translation)."
-            }
-            return@withContext Result.success(
-                AudioTranscriptionTranslationResult(
-                    originalTranscript = sampleOriginal,
-                    translatedTranscript = sampleTranslated,
-                    targetLanguage = targetLanguage,
-                    modelName = model
-                )
-            )
+            return@withContext Result.failure(IllegalStateException("مفتاح Gemini API مطلوب لتفريغ وترجمة الصوت بدقة عالية. يرجى استخراج مفتاح مجاناً من Google AI Studio."))
         }
 
         try {
@@ -571,26 +556,15 @@ class GeminiUnifiedClient(private val context: Context) {
                         modelName = model
                     )
                 )
-            }
-
-            Result.success(
-                AudioTranscriptionTranslationResult(
-                    originalTranscript = "مقطع صوتي مسجل (فصيح)",
-                    translatedTranscript = "Translated audio clip in $targetLanguage",
-                    targetLanguage = targetLanguage,
-                    modelName = model
+            } else {
+                return@withContext Result.failure(
+                    Exception("استجابة غير متوقعة من خدمة Gemini (رمز الحالة: ${response.code}): $responseStr")
                 )
-            )
+            }
+            Result.failure(Exception("فشل الاتصال بخدمة Gemini لتفريغ الصوت بدقة."))
         } catch (e: Exception) {
             Log.e(tag, "Transcribe and translate error", e)
-            Result.success(
-                AudioTranscriptionTranslationResult(
-                    originalTranscript = "خطأ في الاتصال، تم استخدام عينة التفريغ الافتراضية.",
-                    translatedTranscript = "Translated dubbing script in $targetLanguage",
-                    targetLanguage = targetLanguage,
-                    modelName = model
-                )
-            )
+            Result.failure(Exception("خطأ في تفريغ وترجمة الصوت بالذكاء الاصطناعي: ${e.message}"))
         }
     }
 
@@ -968,59 +942,240 @@ data class AudioTranscriptionTranslationResult(
      * Executes a fast direct prompt on Gemini models (such as gemini-2.5-flash / gemini-3.5)
      * Used by ALAD Mobile for instantaneous low-latency live translation.
      */
+    /**
+     * Executes a fast, highly flexible direct prompt on Gemini models with automatic multi-model
+     * cascading fallback and adaptive temperature.
+     * Tries gemini-3.5-flash -> gemini-3.1-flash-lite-preview -> gemini-2.5-flash seamlessly.
+     */
     suspend fun executeDirectPrompt(
         userPrompt: String,
-        model: String = "gemini-2.5-flash",
-        systemInstruction: String = "You are a professional real-time simultaneous audio dubber.",
-        customApiKey: String = ""
+        model: String = "gemini-3.5-flash",
+        systemInstruction: String = "You are an intelligent, highly versatile voice and dubbing studio AI assistant.",
+        customApiKey: String = "",
+        temperature: Float = 0.7f
     ): Result<String> = withContext(Dispatchers.IO) {
         val apiKey = resolveApiKey(customApiKey)
         if (apiKey.isBlank()) {
             return@withContext Result.failure(IllegalStateException("No API key configured"))
         }
 
-        try {
-            val requestJson = JSONObject().apply {
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().put("text", userPrompt))
+        val candidateModels = listOf(
+            model,
+            "gemini-3.5-flash",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-2.5-flash"
+        ).distinct()
+
+        var lastError: Exception? = null
+
+        for (candidateModel in candidateModels) {
+            try {
+                val requestJson = JSONObject().apply {
+                    put("contents", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().put("text", userPrompt))
+                            })
                         })
                     })
-                })
-                if (systemInstruction.isNotBlank()) {
-                    put("systemInstruction", JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().put("text", systemInstruction))
+                    if (systemInstruction.isNotBlank()) {
+                        put("systemInstruction", JSONObject().apply {
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().put("text", systemInstruction))
+                            })
                         })
-                    })
+                    }
+                    val genConfig = JSONObject().apply {
+                        put("temperature", temperature.coerceIn(0.0f, 2.0f))
+                    }
+                    put("generationConfig", genConfig)
                 }
-            }
 
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
-            val request = Request.Builder()
-                .url(url)
-                .post(requestJson.toString().toRequestBody(jsonMediaType))
-                .build()
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$candidateModel:generateContent?key=$apiKey"
+                val request = Request.Builder()
+                    .url(url)
+                    .post(requestJson.toString().toRequestBody(jsonMediaType))
+                    .build()
 
-            val response = httpClient.newCall(request).execute()
-            val respString = response.body?.string() ?: ""
+                val response = httpClient.newCall(request).execute()
+                val respString = response.body?.string() ?: ""
 
-            if (response.isSuccessful) {
-                val respJson = JSONObject(respString)
-                val candidates = respJson.optJSONArray("candidates")
-                val firstCandidate = candidates?.optJSONObject(0)
-                val content = firstCandidate?.optJSONObject("content")
-                val parts = content?.optJSONArray("parts")
-                val reply = parts?.optJSONObject(0)?.optString("text", "") ?: ""
-                if (reply.isNotBlank()) {
-                    return@withContext Result.success(reply)
+                if (response.isSuccessful) {
+                    val respJson = JSONObject(respString)
+                    val candidates = respJson.optJSONArray("candidates")
+                    val firstCandidate = candidates?.optJSONObject(0)
+                    val content = firstCandidate?.optJSONObject("content")
+                    val parts = content?.optJSONArray("parts")
+                    val reply = parts?.optJSONObject(0)?.optString("text", "") ?: ""
+                    if (reply.isNotBlank()) {
+                        return@withContext Result.success(reply.trim())
+                    }
+                } else {
+                    lastError = Exception("Model $candidateModel returned code ${response.code}: $respString")
+                    Log.w(tag, "Model $candidateModel failed (${response.code}), trying next fallback model")
                 }
+            } catch (e: Exception) {
+                lastError = e
+                Log.w(tag, "Exception with model $candidateModel: ${e.message}, trying next")
             }
-            Result.failure(Exception("Gemini returned code ${response.code}: $respString"))
-        } catch (e: Exception) {
-            Result.failure(e)
+        }
+
+        Result.failure(lastError ?: Exception("All Gemini model candidates exhausted"))
+    }
+
+    data class FlexibleStudioAction(
+        val intentType: String, // "DUB_VIDEO", "CHANGE_VOICE", "DENOISE", "ADJUST_VOLUME", "SEPARATE_STEMS", "START_RECORDING", "TRANSLATE", "CONVERSATION"
+        val targetLanguage: String? = null,
+        val voiceEffect: String? = null, // "ROBOT", "CHIPMUNK", "DEEP", "ECHO", "NORMAL"
+        val volumePercent: Int? = null,
+        val toneOrStyle: String? = null,
+        val spokenReply: String,
+        val confidenceScore: Float = 0.95f
+    )
+
+    /**
+     * Highly flexible semantic intent interpreter that understands any natural phrasing,
+     * slang, dialect, or multi-step command and translates it into an actionable studio command.
+     */
+    suspend fun parseFlexibleIntent(
+        naturalSpeechInput: String,
+        customApiKey: String = ""
+    ): FlexibleStudioAction = withContext(Dispatchers.IO) {
+        val cleanInput = naturalSpeechInput.trim()
+        if (cleanInput.isBlank()) {
+            return@withContext FlexibleStudioAction(
+                intentType = "CONVERSATION",
+                spokenReply = "أنا في الاستماع، تفضل بأي أمر تريده في الاستوديو."
+            )
+        }
+
+        val prompt = """
+            You are the ultra-flexible neural core of VoiceMaster Pro dubbing studio.
+            The user spoke or typed the following command (which may be in any language, Arabic dialect, colloquial slang, or mixed phrasing):
+            "$cleanInput"
+
+            Analyze the user's intent with maximum flexibility. The user might want:
+            1. Dubbing/Translating a video or audio ('DUB_VIDEO' or 'TRANSLATE'), specify targetLanguage if mentioned.
+            2. Applying voice effect ('CHANGE_VOICE'), specify effect: ROBOT, CHIPMUNK, DEEP, ECHO, or NORMAL.
+            3. Audio cleaning/noise reduction ('DENOISE').
+            4. Volume adjustments ('ADJUST_VOLUME'), specify volumePercent (0 to 100).
+            5. Audio stem separation ('SEPARATE_STEMS').
+            6. Recording audio ('START_RECORDING').
+            7. General studio advice, question, or conversation ('CONVERSATION').
+
+            Respond ONLY with a JSON object:
+            {
+              "intentType": "DUB_VIDEO" | "CHANGE_VOICE" | "DENOISE" | "ADJUST_VOLUME" | "SEPARATE_STEMS" | "START_RECORDING" | "TRANSLATE" | "CONVERSATION",
+              "targetLanguage": "language name or null",
+              "voiceEffect": "ROBOT" | "CHIPMUNK" | "DEEP" | "ECHO" | "NORMAL" | null,
+              "volumePercent": 50,
+              "toneOrStyle": "style or null",
+              "spokenReply": "A concise, polite, natural response in the exact same language/dialect as the user confirming what was done or answering their question (1-2 sentences max)."
+            }
+        """.trimIndent()
+
+        val aiResult = executeDirectPrompt(
+            userPrompt = prompt,
+            model = "gemini-3.5-flash",
+            systemInstruction = "Output ONLY raw JSON conforming to the requested schema. No markdown backticks, no explanations.",
+            customApiKey = customApiKey,
+            temperature = 0.3f
+        )
+
+        val rawText = aiResult.getOrNull()?.trim()
+            ?.removePrefix("```json")
+            ?.removePrefix("```")
+            ?.removeSuffix("```")
+            ?.trim()
+
+        if (!rawText.isNullOrEmpty()) {
+            try {
+                val json = JSONObject(rawText)
+                return@withContext FlexibleStudioAction(
+                    intentType = json.optString("intentType", "CONVERSATION"),
+                    targetLanguage = json.optString("targetLanguage", "").takeIf { it.isNotBlank() && it != "null" },
+                    voiceEffect = json.optString("voiceEffect", "").takeIf { it.isNotBlank() && it != "null" },
+                    volumePercent = if (json.has("volumePercent") && !json.isNull("volumePercent")) json.optInt("volumePercent") else null,
+                    toneOrStyle = json.optString("toneOrStyle", "").takeIf { it.isNotBlank() && it != "null" },
+                    spokenReply = json.optString("spokenReply", "تم فهم وتنفيذ طلبك بمرونة عالية في الاستوديو.")
+                )
+            } catch (e: Exception) {
+                Log.w(tag, "JSON parsing of flexible intent failed, using heuristic: ${e.message}")
+            }
+        }
+
+        // Resilient Heuristic Fallback
+        val lower = cleanInput.lowercase()
+        when {
+            lower.contains("دبلج") || lower.contains("dub") || lower.contains("ترجم") || lower.contains("translate") -> {
+                val lang = when {
+                    lower.contains("انجليز") || lower.contains("english") -> "الإنجليزية"
+                    lower.contains("فرنس") || lower.contains("french") -> "الفرنسية"
+                    lower.contains("اسبان") || lower.contains("spanish") -> "الإسبانية"
+                    lower.contains("تركي") || lower.contains("turkish") -> "التركية"
+                    lower.contains("المان") || lower.contains("german") -> "الألمانية"
+                    lower.contains("عرب") || lower.contains("arabic") -> "العربية"
+                    else -> null
+                }
+                FlexibleStudioAction(
+                    intentType = "DUB_VIDEO",
+                    targetLanguage = lang,
+                    spokenReply = "بدأت دبلجة وترجمة المشهد بمرونة وفق طلبك 🎬"
+                )
+            }
+            lower.contains("روبوت") || lower.contains("الي") || lower.contains("robot") -> {
+                FlexibleStudioAction(
+                    intentType = "CHANGE_VOICE",
+                    voiceEffect = "ROBOT",
+                    spokenReply = "تم تفعيل نبرة الروبوت الآلي 🤖"
+                )
+            }
+            lower.contains("سنجاب") || lower.contains("كرتون") || lower.contains("chipmunk") -> {
+                FlexibleStudioAction(
+                    intentType = "CHANGE_VOICE",
+                    voiceEffect = "CHIPMUNK",
+                    spokenReply = "تم تحويل الصوت إلى النمط الكرتوني المرح 🐿️"
+                )
+            }
+            lower.contains("سينمائي") || lower.contains("فخم") || lower.contains("جهوري") || lower.contains("deep") -> {
+                FlexibleStudioAction(
+                    intentType = "CHANGE_VOICE",
+                    voiceEffect = "DEEP",
+                    spokenReply = "تم تفعيل الصوت السينمائي الفخم 🎙️"
+                )
+            }
+            lower.contains("صدا") || lower.contains("استوديو") || lower.contains("echo") -> {
+                FlexibleStudioAction(
+                    intentType = "CHANGE_VOICE",
+                    voiceEffect = "ECHO",
+                    spokenReply = "تم تطبيق صدى الاستوديو الاحترافي 🎚️"
+                )
+            }
+            lower.contains("نظف") || lower.contains("عزل") || lower.contains("ضوضاء") || lower.contains("denoise") -> {
+                FlexibleStudioAction(
+                    intentType = "DENOISE",
+                    spokenReply = "تم تنقية الصوت وعزل التشويش بدقة استوديو ✨"
+                )
+            }
+            lower.contains("افصل") || lower.contains("موسيقى") || lower.contains("عزل الصوت") || lower.contains("stems") -> {
+                FlexibleStudioAction(
+                    intentType = "SEPARATE_STEMS",
+                    spokenReply = "جارٍ تفكيك وفصل مسارات الصوت والموسيقى بدقة 🎧"
+                )
+            }
+            lower.contains("سجل") || lower.contains("تسجيل") || lower.contains("record") -> {
+                FlexibleStudioAction(
+                    intentType = "START_RECORDING",
+                    spokenReply = "بدأ التسجيل الصوتي الآن، تحدث بوضوح 🎙️"
+                )
+            }
+            else -> {
+                FlexibleStudioAction(
+                    intentType = "CONVERSATION",
+                    spokenReply = "أهلاً بك! أنا مستعد لتنفيذ أي دبلجة، تعديل صوت، أو ترجمة تريدها بمرونة تامة."
+                )
+            }
         }
     }
 }

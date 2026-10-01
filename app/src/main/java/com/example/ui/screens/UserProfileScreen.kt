@@ -765,9 +765,9 @@ fun UserProfileScreen(
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "المطور المعتمد: محمد رضا محمود محمود السيد سليمة",
+                            text = "مؤسس ومبتكر التطبيق: محمد رضا محمود محمود سليمه",
                             fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             textAlign = TextAlign.Center
                         )
@@ -775,12 +775,6 @@ fun UserProfileScreen(
                             text = "جميع حقوق النشر والملكية الفكرية محفوظة © 2026",
                             fontSize = 10.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "📍 مصر - محافظة المنوفية - شبين الكوم - شارع القفاص",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center
                         )
                     }

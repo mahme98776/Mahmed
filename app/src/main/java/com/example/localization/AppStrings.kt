@@ -19,6 +19,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "VoiceMaster Pro | Studio Dubbing AI"
         AppLanguage.PERSIAN -> "ویس مستر پرو | VoiceMaster Pro"
         AppLanguage.URDU -> "وائس ماسٹر پرو | VoiceMaster Pro"
+        else -> "VoiceMaster Pro | AI Dubbing Studio"
     }
 
     fun tabVideoDub(lang: AppLanguage): String = when (lang) {
@@ -38,6 +39,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "Dubbing AI"
         AppLanguage.PERSIAN -> "دوبله AI"
         AppLanguage.URDU -> "ڈبنگ AI"
+        else -> "AI Dub"
     }
 
     fun tabStudio(lang: AppLanguage): String = when (lang) {
@@ -57,6 +59,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "Studio"
         AppLanguage.PERSIAN -> "استودیو"
         AppLanguage.URDU -> "اسٹوڈیو"
+        else -> "Studio"
     }
 
     fun tabVoices(lang: AppLanguage): String = when (lang) {
@@ -76,6 +79,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "Suara"
         AppLanguage.PERSIAN -> "صداها"
         AppLanguage.URDU -> "آوازیں"
+        else -> "Voices"
     }
 
     fun tabProjects(lang: AppLanguage): String = when (lang) {
@@ -95,6 +99,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "Proyek"
         AppLanguage.PERSIAN -> "پروژه‌ها"
         AppLanguage.URDU -> "پروجیکٹس"
+        else -> "Projects"
     }
 
     fun tabSettings(lang: AppLanguage): String = when (lang) {
@@ -114,6 +119,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "Pengaturan"
         AppLanguage.PERSIAN -> "تنظیمات"
         AppLanguage.URDU -> "سیٹنگز"
+        else -> "Settings"
     }
 
     fun moreTools(lang: AppLanguage): String = when (lang) {
@@ -133,6 +139,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "Lainnya ⚡"
         AppLanguage.PERSIAN -> "بیشتر ⚡"
         AppLanguage.URDU -> "مزید ⚡"
+        else -> "More ⚡"
     }
 
     fun step1(lang: AppLanguage): String = when (lang) {
@@ -152,6 +159,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "1️⃣ Pilih Video"
         AppLanguage.PERSIAN -> "1️⃣ انتخاب ویدیو"
         AppLanguage.URDU -> "1️⃣ ویڈیو منتخب کریں"
+        else -> "1️⃣ Pick Video"
     }
 
     fun step2(lang: AppLanguage): String = when (lang) {
@@ -171,6 +179,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "2️⃣ Bahasa & Suara"
         AppLanguage.PERSIAN -> "2️⃣ زبان و صدا"
         AppLanguage.URDU -> "2️⃣ زبان اور آواز"
+        else -> "2️⃣ Set Language & Voice"
     }
 
     fun step3(lang: AppLanguage): String = when (lang) {
@@ -190,6 +199,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "3️⃣ Dubbing & Gabung Instan!"
         AppLanguage.PERSIAN -> "3️⃣ دوبله و ادغام فوری!"
         AppLanguage.URDU -> "3️⃣ فوری ڈبنگ اور انضمام!"
+        else -> "3️⃣ Instant Dub & Merge!"
     }
 
     fun startDubbingNow(lang: AppLanguage): String = when (lang) {
@@ -209,6 +219,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "🚀 Mulai Dubbing & Gabung Otomatis Sekarang"
         AppLanguage.PERSIAN -> "🚀 شروع دوبله و ادغام خودکار"
         AppLanguage.URDU -> "🚀 خودکار ڈبنگ اور انضمام شروع کریں"
+        else -> "🚀 Start Auto Dubbing & Merging Now"
     }
 
     fun settingsTitle(lang: AppLanguage): String = when (lang) {
@@ -228,6 +239,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "⚙️ Pengaturan Aplikasi & Dubbing"
         AppLanguage.PERSIAN -> "⚙️ تنظیمات برنامه و دوبله"
         AppLanguage.URDU -> "⚙️ ایپ اور ڈبنگ ترتیبات"
+        else -> "⚙️ App & Dubbing Settings"
     }
 
     fun languageSection(lang: AppLanguage): String = when (lang) {
@@ -247,6 +259,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "🌐 Bahasa Antarmuka"
         AppLanguage.PERSIAN -> "🌐 زبان رابط کاربری"
         AppLanguage.URDU -> "🌐 انٹرفیس کی زبان"
+        else -> "🌐 Interface Language & Localization"
     }
 
     fun themeSection(lang: AppLanguage): String = when (lang) {
@@ -266,6 +279,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "🎨 Tema & Tampilan"
         AppLanguage.PERSIAN -> "🎨 تم و ظاهر"
         AppLanguage.URDU -> "🎨 تھیم اور ظاہری شکل"
+        else -> "🎨 Theme & Appearance"
     }
 
     fun audioExportSection(lang: AppLanguage): String = when (lang) {
@@ -285,6 +299,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "🎬 Pengaturan Ekspor Video & Audio"
         AppLanguage.PERSIAN -> "🎬 تنظیمات خروجی ویدیو و صدا"
         AppLanguage.URDU -> "🎬 ویڈیو اور آڈیو ایکسپورٹ سیٹنگز"
+        else -> "🎬 Video & Audio Export Settings"
     }
 
     fun aiEnginesSection(lang: AppLanguage): String = when (lang) {
@@ -304,6 +319,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "🤖 Mesin AI & Sintesis Suara"
         AppLanguage.PERSIAN -> "🤖 موتورهای هوش مصنوعی و صدا"
         AppLanguage.URDU -> "🤖 اے آئی اور آواز انجن"
+        else -> "🤖 AI & Voice Generation Engines"
     }
 
     fun storageSection(lang: AppLanguage): String = when (lang) {
@@ -323,6 +339,7 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "💾 Penyimpanan, Cache & Reset"
         AppLanguage.PERSIAN -> "💾 حافظه، کش و بازنشانی"
         AppLanguage.URDU -> "💾 اسٹوریج، کیش اور ری سیٹ"
+        else -> "💾 Storage, Cache & Reset"
     }
 
     fun aboutSection(lang: AppLanguage): String = when (lang) {
@@ -342,5 +359,6 @@ object AppStrings {
         AppLanguage.INDONESIAN -> "ℹ️ Tentang Aplikasi"
         AppLanguage.PERSIAN -> "ℹ️ درباره برنامه"
         AppLanguage.URDU -> "ℹ️ ایپ کے بارے میں"
+        else -> "ℹ️ About App & Features"
     }
 }

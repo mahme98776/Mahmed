@@ -291,18 +291,6 @@ fun VideoSpeechToTextComponent(
                         )
                     }
                 }
-
-                // Sample Data / Fast Test Button
-                OutlinedButton(
-                    onClick = { viewModel.loadSampleSpeechToText() },
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.testTag("load_sample_stt_button")
-                ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("نموذج تجريبي ⚡", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                }
             }
 
             // Progress Indicator during transcription

@@ -518,16 +518,11 @@ fun InstantDubbingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Load Ready Voice Sample Button
+                        // Record Real Voice Button
                         Button(
                             onClick = {
-                                val sampleFile = java.io.File(context.cacheDir, "demo_voice_sample.wav")
-                                if (!sampleFile.exists()) {
-                                    sampleFile.writeBytes(ByteArray(4096))
-                                }
-                                testTakePath = sampleFile.absolutePath
-                                isRecordingTestTake = false
-                                Toast.makeText(context, "تم تحميل عينة صوتية للتجربة 🎵", Toast.LENGTH_SHORT).show()
+                                viewModel.startRecordingCountdown()
+                                Toast.makeText(context, "تحدث الآن لتسجيل صوتك الحقيقي واختبار التحويل 🎙️", Toast.LENGTH_SHORT).show()
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFFD0BCFF),
@@ -537,16 +532,16 @@ fun InstantDubbingScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp)
-                                .testTag("load_sample_instant_dub_btn")
+                                .testTag("record_instant_dub_btn")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.MusicNote,
+                                imageVector = Icons.Default.GraphicEq,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                text = "عينة صوتية جاهزة 🎵",
+                                text = "تسجيل صوت حقيقي 🎙️",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )

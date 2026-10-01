@@ -201,7 +201,7 @@ class AudioAssetsRepositoryImpl(
             "english_sample_narrator" -> "تسجيل تعليق صوتي باللغة الإنجليزية"
             "whoosh_transition" -> "تأثير انتقال هوائي سريع (Whoosh)"
             "bell_notification" -> "جرس تنبيه سينمائي نقي"
-            "dialogue_arabic_scene1" -> "حوار تمثيلي تجريبي للمزامنة"
+            "dialogue_arabic_scene1" -> "حوار تمثيلي سينمائي متزامن"
             else -> nameWithoutExt.replace('_', ' ').replace('-', ' ')
         }
     }

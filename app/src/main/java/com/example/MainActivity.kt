@@ -2,9 +2,9 @@
  * تطبيق فويس ماستر برو | VoiceMaster Pro
  * استوديو الدبلجة وهندسة الصوت بالذكاء الاصطناعي
  * 
- * المالك والمبتكر وصاحب كافة حقوق النشر والملكية الفكرية:
- * محمد رضا محمود محمود السيد سليمة
- * مصر - محافظة المنوفية - مركز شبين الكوم - شارع القفاص
+ * المالك والمبتكر ومؤسس هذا التطبيق:
+ * محمد رضا محمود محمود سليمه
+ * محمد رضا محمود محمود سليمه من أسس هذا التطبيق
  * جميع الحقوق محفوظة © 2026
  */
 package com.example
@@ -102,6 +102,7 @@ import com.example.localization.AppLanguage
 import com.example.localization.AppStrings
 import com.example.ui.DubbingViewModel
 import com.example.ui.components.AlexaVoiceAssistantModal
+import com.example.ui.components.ExtractGeminiApiKeyDialog
 import com.example.ui.components.PersistentAiChatOverlay
 import com.example.ui.screens.AladLiveDubbingScreen
 import com.example.ui.screens.AiDubbingScreen
@@ -196,6 +197,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // محمد رضا محمود محمود سليمه من أسس هذا التطبيق
         if (intent?.getBooleanExtra(EXTRA_AUTO_OPEN_ALEXA, false) == true) {
             globalAlexaTriggerFlow.value = true
         }
@@ -237,6 +239,8 @@ fun MainScreen(
     var selectedTab by remember { mutableStateOf(AppTab.VIDEO_DUB) }
     var showMoreToolsSheet by remember { mutableStateOf(false) }
     var showAlexaVoiceAssistant by remember { mutableStateOf(false) }
+    val showExtractApiKeyDialog by viewModel.showExtractApiKeyDialog.collectAsStateWithLifecycle()
+    val geminiApiKey by viewModel.geminiApiKey.collectAsStateWithLifecycle()
 
     val globalWakeTrigger by MainActivity.globalAlexaTriggerFlow.collectAsStateWithLifecycle()
     LaunchedEffect(globalWakeTrigger) {
@@ -765,6 +769,24 @@ fun MainScreen(
                             }
                         }
                     }
+                )
+            }
+
+            // Extract & Manage Gemini API Key Dialog (Global)
+            if (showExtractApiKeyDialog) {
+                ExtractGeminiApiKeyDialog(
+                    currentSavedKey = geminiApiKey,
+                    onSaveKey = { newKey ->
+                        viewModel.updateGeminiApiKey(newKey)
+                        viewModel.setShowExtractApiKeyDialog(false)
+                    },
+                    onClearKey = {
+                        viewModel.clearGeminiApiKey()
+                    },
+                    onDismiss = {
+                        viewModel.setShowExtractApiKeyDialog(false)
+                    },
+                    aiClient = viewModel.geminiUnifiedClient
                 )
             }
 

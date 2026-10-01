@@ -326,7 +326,7 @@ class VattDubbingEngine(
             var outputVideoPath = ""
             try {
                 val exportManager = MediaExportManager(context)
-                val dummyClip = DubbingClip(
+                val vattActiveClip = DubbingClip(
                     id = "vatt_${System.currentTimeMillis()}",
                     title = videoTitle,
                     description = "VATT Dubbed Video",
@@ -351,11 +351,11 @@ class VattDubbingEngine(
                     isImportedVideo = true
                 )
                 val mergeRes = exportManager.mergeOriginalVideoWithDubbedAudio(
-                    clip = dummyClip,
+                    clip = vattActiveClip,
                     project = null,
                     customVideoPathOrUri = videoUri.toString(),
                     recordedAudioPath = masterAudioFile.absolutePath,
-                    scriptLines = dummyClip.scriptLines,
+                    scriptLines = vattActiveClip.scriptLines,
                     customTitle = "vatt_dub_${videoTitle}"
                 )
                 if (mergeRes is com.example.export.ExportResult.Success) {

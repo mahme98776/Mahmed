@@ -87,6 +87,7 @@ enum class AlexaVoiceIntent(val titleArabic: String, val iconEmoji: String) {
     REDO_ACTION("إعادة تطبيق التعديل 🔁", "🔁"),
     DEVELOPER_COPYRIGHT_QUERY("الاستعلام عن المطور وحقوق الملكية 👤", "🛡️"),
     ASSIST_BLIND_READ_STATUS("قراءة الشاشة ومساعدة المكفوفين 👁️", "👁️"),
+    RESET_AND_EXTRACT_API_KEY("حذف واستخراج مفتاح الذكاء الاصطناعي 🔑", "🔑"),
     CONVERSATIONAL_QUESTION("محادثة ذكاء اصطناعي تفاعلية 💡", "✨"),
     UNKNOWN("أمر غير محدد ❓", "❓")
 }
@@ -267,8 +268,12 @@ class AlexaVoiceAssistantEngine(
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, primaryLangTag)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, deviceLocale.language.ifEmpty { "ar" })
-                // Multi-language hints for Google Speech Recognizer
-                putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("ar-SA", "en-US", "fr-FR", "es-ES", "de-DE"))
+                // Multi-language hints for Google Speech Recognizer supporting all global studio languages
+                putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf(
+                    "ar-SA", "en-US", "fr-FR", "es-ES", "de-DE", "tr-TR", "ja-JP", "ko-KR", 
+                    "it-IT", "ru-RU", "zh-CN", "pt-BR", "hi-IN", "id-ID", "fa-IR", "ur-PK",
+                    "nl-NL", "pl-PL", "sv-SE", "uk-UA", "el-GR", "vi-VN", "th-TH", "fil-PH"
+                ))
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
@@ -441,16 +446,20 @@ class AlexaVoiceAssistantEngine(
 
         _assistantState.value = AlexaAssistantState.Executing(parsed.detectedIntent.titleArabic)
 
-        // Speak back voice confirmation like Alexa / Gemini
-        if (_isVoiceFeedbackEnabled.value && parsed.responseSpeechArabic.isNotBlank()) {
+        val isConversational = parsed.detectedIntent == AlexaVoiceIntent.CONVERSATIONAL_QUESTION || parsed.detectedIntent == AlexaVoiceIntent.UNKNOWN
+
+        // Speak back voice confirmation for specific action commands
+        if (!isConversational && _isVoiceFeedbackEnabled.value && parsed.responseSpeechArabic.isNotBlank()) {
             ttsManager.speakText(parsed.responseSpeechArabic, utteranceId = "alexa_assistant_response")
             _assistantState.value = AlexaAssistantState.Speaking(parsed.responseSpeechArabic)
+        } else if (isConversational) {
+            _assistantState.value = AlexaAssistantState.Thinking
         }
 
         // Auto-execute parsed command immediately
         val vm = activeViewModel
         val nav = activeNavigationCallback
-        if (vm != null && nav != null && parsed.detectedIntent != AlexaVoiceIntent.UNKNOWN) {
+        if (vm != null && nav != null) {
             executeParsedCommand(parsed, vm, nav)
         }
     }
@@ -496,6 +505,15 @@ class AlexaVoiceAssistantEngine(
                     _assistantState.value = AlexaAssistantState.Speaking(readout)
                     ttsManager.speakText(readout, utteranceId = "alexa_blind_status")
                     viewModel.showToast(readout.take(85) + "...")
+                }
+                AlexaVoiceIntent.RESET_AND_EXTRACT_API_KEY -> {
+                    triggerHapticFeedback(70L)
+                    viewModel.clearGeminiApiKey()
+                    viewModel.setShowExtractApiKeyDialog(true)
+                    ttsManager.speakText(
+                        "تم حذف مفتاح API المسجل بالكامل. فتحت لك الآن شاشة استخراج مفتاح جديد مجاناً من Google AI Studio.",
+                        utteranceId = "alexa_reset_key"
+                    )
                 }
                 AlexaVoiceIntent.START_RECORDING -> {
                     viewModel.startRecordingCountdown()
@@ -608,7 +626,8 @@ class AlexaVoiceAssistantEngine(
                     }
                 }
                 AlexaVoiceIntent.GENERATE_AI_SCRIPT -> {
-                    viewModel.generateGeminiArabicScript()
+                    val lang = command.targetTranslationLang ?: "العربية"
+                    viewModel.generateGeminiScript(targetLanguage = lang)
                 }
                 AlexaVoiceIntent.READ_SCRIPT_ALOUD -> {
                     viewModel.readCurrentScriptAloud()
@@ -676,18 +695,48 @@ class AlexaVoiceAssistantEngine(
                     } else if (rawSpoken.length > 2) {
                         executionScope?.launch(Dispatchers.IO) {
                             try {
-                                val prompt = "أنت المساعد الذكي أليكسا المدعوم بنموذج Google Gemini داخل تطبيق استوديو الدبلجة. أجب بذكاء واختصار باللغة العربية (في حدود جملتين أو 3 جمل فقط): $rawSpoken"
-                                val geminiResult = viewModel.geminiUnifiedClient.executeDirectPrompt(prompt)
-                                val reply = geminiResult.getOrNull()?.trim()
-                                if (!reply.isNullOrEmpty()) {
-                                    withContext(Dispatchers.Main) {
-                                        _lastParsedCommand.value = command.copy(responseSpeechArabic = reply)
-                                        ttsManager.speakText(reply, utteranceId = "gemini_voice_direct_reply")
-                                        viewModel.showToast(reply.take(75) + "...")
+                                val flexibleAction = viewModel.geminiUnifiedClient.parseFlexibleIntent(rawSpoken)
+                                withContext(Dispatchers.Main) {
+                                    when (flexibleAction.intentType) {
+                                        "CHANGE_VOICE" -> {
+                                            val preset = when (flexibleAction.voiceEffect?.uppercase()) {
+                                                "ROBOT" -> VoicePresetType.ROBOT
+                                                "CHIPMUNK" -> VoicePresetType.CHIPMUNK
+                                                "DEEP" -> VoicePresetType.DEEP_VOICE
+                                                "ECHO" -> VoicePresetType.ECHO
+                                                else -> VoicePresetType.NORMAL
+                                            }
+                                            viewModel.selectVoicePreset(preset)
+                                        }
+                                        "DUB_VIDEO" -> {
+                                            viewModel.startAutoVideoDubbing()
+                                        }
+                                        "DENOISE" -> {
+                                            triggerMedia3AutoCleanOnCurrentTake(viewModel)
+                                        }
+                                        "SEPARATE_STEMS" -> {
+                                            viewModel.separateAudioStems()
+                                        }
+                                        "START_RECORDING" -> {
+                                            viewModel.startRecordingCountdown()
+                                        }
+                                        "TRANSLATE" -> {
+                                            val lang = flexibleAction.targetLanguage ?: "العربية"
+                                            viewModel.generateGeminiScript(targetLanguage = lang)
+                                        }
                                     }
+
+                                    val reply = flexibleAction.spokenReply
+                                    _lastParsedCommand.value = command.copy(responseSpeechArabic = reply)
+                                    _assistantState.value = AlexaAssistantState.Speaking(reply)
+                                    ttsManager.speakText(reply, utteranceId = "gemini_voice_direct_reply")
+                                    viewModel.showToast(reply.take(75) + "...")
                                 }
                             } catch (e: Exception) {
-                                Log.w(tag, "Gemini Q&A assistant fallback: ${e.message}")
+                                Log.w(tag, "Gemini flexible intent fallback: ${e.message}")
+                                withContext(Dispatchers.Main) {
+                                    _assistantState.value = AlexaAssistantState.Idle
+                                }
                             }
                         }
                     }
@@ -762,13 +811,13 @@ class AlexaVoiceAssistantEngine(
             }
         }
 
-        // 1. Copyright & Intellectual Property Query
-        if (containsAny(processedText, listOf("مين المطور", "من هو المطور", "صاحب التطبيق", "حقوق النشر", "حقوق الملكيه", "محمد سليمه", "سليمه", "من صنع التطبيق"))) {
+        // 1. Copyright & Intellectual Property Query - محمد رضا محمود محمود سليمه من أسس هذا التطبيق
+        if (containsAny(processedText, listOf("مين المطور", "من هو المطور", "صاحب التطبيق", "من اسس التطبيق", "مؤسس التطبيق", "حقوق النشر", "حقوق الملكيه", "محمد سليمه", "سليمه", "من صنع التطبيق"))) {
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.DEVELOPER_COPYRIGHT_QUERY,
                 effectType = null,
                 navTarget = null,
-                responseArabic = "تطبيق فويس ماستر برو تم ابتكاره وتطويره بالكامل بواسطة الأستاذ محمد رضا محمود محمود السيد سليمة، وجميع حقوق الملكية الفكرية والنشر محفوظة له بالكامل.",
+                responseArabic = "محمد رضا محمود محمود سليمه من أسس هذا التطبيق، وحفظ جميع حقوق النشر والملكية الفكرية للناشر محمد سليمه والمكان فكريه بالكامل.",
                 wasAutoCorrected = false
             )
         }
@@ -784,6 +833,21 @@ class AlexaVoiceAssistantEngine(
                 navTarget = null,
                 responseArabic = "المساعد الصوتي وميزة مساعدة المكفوفين جاهزة. أقرأ لك حالة الاستوديو الآن.",
                 wasAutoCorrected = false
+            )
+        }
+
+        // 1.8 API Key Deletion & New Extraction Query (حذف واستخراج مفتاح الذكاء الاصطناعي)
+        if (containsAny(processedText, listOf(
+            "احذف المفتاح", "حذف المفتاح", "احذف api key", "حذف api key", "احذف ال api", "مسح المفتاح",
+            "استخرج مفتاح", "استخراج مفتاح", "مفتاح جديد", "توليد مفتاح", "هات مفتاح جديد", "مفتاح gemini",
+            "مفتاح الذكاء الاصطناعي", "extract api key", "delete api key", "new api key", "reset api key", "clear api key"
+        ))) {
+            return IntentResolutionResult(
+                intent = AlexaVoiceIntent.RESET_AND_EXTRACT_API_KEY,
+                effectType = null,
+                navTarget = null,
+                responseArabic = "تم حذف مفتاح API المسجل بالكامل وفتحت لك شاشة استخراج مفتاح جديد مجاناً من Google AI Studio 🔑",
+                wasAutoCorrected = true
             )
         }
 
@@ -1241,10 +1305,23 @@ class AlexaVoiceAssistantEngine(
         }
 
         // Script, Reading & Take Management
-        if (containsAny(processedText, listOf("ألف سيناريو", "اكتب سيناريو بالذكاء الاصطناعي", "توليد سيناريو ذكي", "ولد حوارات", "ألف حوارات"))) {
+        if (containsAny(processedText, listOf("ألف سيناريو", "اكتب سيناريو بالذكاء الاصطناعي", "توليد سيناريو ذكي", "ولد حوارات", "ألف حوارات", "الف سيناريو", "اكتب سيناريو", "ولد سيناريو", "generate script", "write script"))) {
+            val targetLang = when {
+                processedText.contains("انجليزي") || processedText.contains("english") -> "الإنجليزية"
+                processedText.contains("فرنسي") || processedText.contains("french") -> "الفرنسية"
+                processedText.contains("اسباني") || processedText.contains("spanish") -> "الإسبانية"
+                processedText.contains("الماني") || processedText.contains("german") -> "الألمانية"
+                processedText.contains("تركي") || processedText.contains("turkish") -> "التركية"
+                processedText.contains("روسي") || processedText.contains("russian") -> "الروسية"
+                processedText.contains("ياباني") || processedText.contains("japanese") -> "اليابانية"
+                processedText.contains("كوري") || processedText.contains("korean") -> "الكورية"
+                processedText.contains("صيني") || processedText.contains("chinese") -> "الصينية"
+                else -> "العربية"
+            }
             return IntentResolutionResult(
                 intent = AlexaVoiceIntent.GENERATE_AI_SCRIPT,
-                responseArabic = "جارٍ توليد وتأليف سيناريو درامي ذكي متزامن مع المشهد عبر Gemini AI 🪄",
+                targetTranslationLang = targetLang,
+                responseArabic = "جارٍ توليد وتأليف سيناريو درامي ذكي متزامن بـ ($targetLang) عبر Gemini AI 🪄",
                 wasAutoCorrected = true
             )
         }
@@ -1427,6 +1504,7 @@ class AlexaVoiceAssistantEngine(
             AlexaVoiceIntent.REDO_ACTION -> "إعادة تطبيق التعديل"
             AlexaVoiceIntent.DEVELOPER_COPYRIGHT_QUERY -> "الاستعلام عن مطور التطبيق وحقوق الملكية"
             AlexaVoiceIntent.ASSIST_BLIND_READ_STATUS -> "قراءة الشاشة ومساعدة المكفوفين"
+            AlexaVoiceIntent.RESET_AND_EXTRACT_API_KEY -> "حذف واستخراج مفتاح الذكاء الاصطناعي"
             else -> "أمر صوتي"
         }
     }

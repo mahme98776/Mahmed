@@ -109,7 +109,7 @@ class BatchDubbingEngine(
                 dubbingStyle = style,
                 pacing = DubbingPacing.BALANCED,
                 status = BatchItemStatus.QUEUED,
-                statusMessage = "مشهد تجريبي جاهز للمعالجة 🎬"
+                statusMessage = "مشهد سينمائي جاهز للمعالجة 🎬"
             )
         }
 

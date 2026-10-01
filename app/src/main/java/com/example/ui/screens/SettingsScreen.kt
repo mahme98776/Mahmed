@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ExitToApp
@@ -128,7 +129,10 @@ fun SettingsScreen(
     val syncStatus by viewModel.authService.syncStatus.collectAsStateWithLifecycle()
     val userSettings by viewModel.userSettings.collectAsStateWithLifecycle()
 
-    var keyInputText by remember(savedGeminiKey) { mutableStateOf(savedGeminiKey) }
+    var keyInputText by remember(savedGeminiKey) {
+        mutableStateOf(if (savedGeminiKey.startsWith("AQ.Ab8") || savedGeminiKey == "MY_GEMINI_API_KEY") "" else savedGeminiKey)
+    }
+    var showExtractKeyDialog by remember { mutableStateOf(false) }
     var showAllLanguages by remember { mutableStateOf(false) }
     var showOnboardingDialogInSettings by remember { mutableStateOf(false) }
 
@@ -692,8 +696,8 @@ fun SettingsScreen(
                         onClick = {
                             val baseProfile = viewModel.ttsManager.voiceProfiles.firstOrNull() ?: com.example.audio.VoiceProfile(
                                 id = "preview_voice",
-                                titleArabic = "صوت تجريبي",
-                                subtitleArabic = "اختبار DataStore",
+                                titleArabic = "صوت الاستوديو الاحترافي",
+                                subtitleArabic = "هندسة الصوت الذكية",
                                 emoji = "🎙️",
                                 pitch = 1.0f,
                                 speechRate = 1.0f
@@ -703,7 +707,7 @@ fun SettingsScreen(
                                 speechRate = userSettings.speechRate
                             )
                             viewModel.ttsManager.speakText(
-                                text = "مرحباً بك في فويس ماستر برو، هذه تجربة للسرعة والنبرة المحفوظة عبر داتاستور",
+                                text = "مرحباً بك في فويس ماستر برو، استوديو هندسة الصوت والدبلجة الفورية بالذكاء الاصطناعي.",
                                 profile = customProfile
                             )
                         },
@@ -712,7 +716,7 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("تجربة الصوت 🔊", fontSize = 12.sp)
+                        Text("تشغيل صوت الاستوديو 🔊", fontSize = 12.sp)
                     }
 
                     OutlinedButton(
@@ -805,25 +809,21 @@ fun SettingsScreen(
                         }
                     }
 
-                    // Direct Link Button to Google AI Studio
+                    // Direct Link & Extraction Dialog Button
                     Button(
                         onClick = {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
-                            } catch (_: Exception) {}
+                            showExtractKeyDialog = true
                         },
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B6EBB)),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(44.dp)
+                            .height(46.dp)
                             .testTag("open_aistudio_apikey_btn")
                     ) {
-                        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("🔗 إنشاء مفتاحك المجاني من Google AI Studio", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                        Text("🔑 استخراج مفتاح مجاني جديد (Google AI Studio)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                     }
 
                     OutlinedTextField(
@@ -867,12 +867,13 @@ fun SettingsScreen(
                             OutlinedButton(
                                 onClick = {
                                     keyInputText = ""
-                                    viewModel.updateGeminiApiKey("")
+                                    viewModel.clearGeminiApiKey()
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(42.dp)
+                                modifier = Modifier.height(42.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
                             ) {
-                                Text("مسح 🗑️", fontSize = 11.sp)
+                                Text("حذف المفتاح 🗑️", fontSize = 11.sp)
                             }
                         }
                     }
@@ -1188,16 +1189,10 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(3.dp))
                     Text(
-                        text = "من أنشأ هذا البرنامج هو: محمد سليمة (محمد رضا محمود محمود السيد سليمة)",
+                        text = "محمد رضا محمود محمود سليمه من أسس هذا التطبيق (محمد سليمة)",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "📍 مصر - محافظة المنوفية - شبين الكوم - شارع القفاص",
-                        fontSize = 10.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1215,6 +1210,22 @@ fun SettingsScreen(
                     }
                 }
             }
+        )
+    }
+
+    if (showExtractKeyDialog) {
+        com.example.ui.components.ExtractGeminiApiKeyDialog(
+            currentSavedKey = keyInputText,
+            onSaveKey = {
+                keyInputText = it
+                viewModel.updateGeminiApiKey(it)
+            },
+            onClearKey = {
+                keyInputText = ""
+                viewModel.clearGeminiApiKey()
+            },
+            onDismiss = { showExtractKeyDialog = false },
+            aiClient = viewModel.geminiUnifiedClient
         )
     }
 }

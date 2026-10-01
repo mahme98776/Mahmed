@@ -143,8 +143,7 @@ fun VideoDubbingSuiteSection(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // 1. Video & Project State
-    var selectedVideoTitle by remember { mutableStateOf("مشهد فيلم المغامرات والغموض (عينة جاهزة).mp4") }
+    var selectedVideoTitle by remember { mutableStateOf("مشهد استوديو سينمائي احترافي.mp4") }
     var videoDurationSeconds by remember { mutableIntStateOf(24) }
     var isProcessingDubbing by remember { mutableStateOf(false) }
     var dubbingProgress by remember { mutableFloatStateOf(0f) }

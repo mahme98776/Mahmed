@@ -29,7 +29,7 @@ class AcousticWatermarkSecurityEngine(private val context: Context) {
     private val tag = "AcousticWatermark"
 
     private val defaultPublisher = "محمد سليمه"
-    private val defaultCopyrightStatement = "حفظ جميع الحقوق والملكية الفكرية للمطور والناشر محمد سليمه"
+    private val defaultCopyrightStatement = "حفظ جميع الحقوق والملكية الفكرية وحقوق النشر للناشر محمد سليمه والمكان فكريه © 2026"
 
     fun generateDigitalCertificate(sourceFile: File): WatermarkCertificate {
         val fileBytes = if (sourceFile.exists()) sourceFile.readBytes() else "VOICEMASTER_PRO_CERT".toByteArray()

@@ -1021,33 +1021,13 @@ fun TranscribeAudioSection(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Button(
+                    onClick = { audioPickerLauncher.launch("audio/*") },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Button(
-                        onClick = { audioPickerLauncher.launch("audio/*") },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.CloudUpload, contentDescription = "Upload", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("رفع ملف صوتي", fontSize = 12.sp)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            val f = File(context.cacheDir, "sample_audio.wav")
-                            if (!f.exists()) {
-                                f.writeBytes(ByteArray(4096))
-                            }
-                            audioRecordFile = f
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.MusicNote, contentDescription = "Sample", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("عينة صوتية جاهزة", fontSize = 12.sp)
-                    }
+                    Icon(Icons.Default.CloudUpload, contentDescription = "Upload", modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("اختيار ملف صوتي من الجهاز 📁", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
 
                 if (audioRecordFile != null) {

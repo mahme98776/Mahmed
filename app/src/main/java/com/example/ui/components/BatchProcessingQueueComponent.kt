@@ -306,33 +306,19 @@ fun BatchProcessingQueueComponent(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // زر استيراد الفيديوهات
             Button(
                 onClick = { multipleVideoLauncher.launch("video/*") },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
                 shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 modifier = Modifier
-                    .weight(1.3f)
+                    .weight(1f)
                     .testTag("btn_import_multiple_videos")
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("استيراد فيديوهات", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            }
-
-            OutlinedButton(
-                onClick = onAddSamplePack,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE2E8F0)),
-                border = BorderStroke(1.dp, Color(0xFF475569)),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("btn_add_sample_pack")
-            ) {
-                Icon(Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFFFBBF24))
-                Spacer(Modifier.width(4.dp))
-                Text("حزمة تجريبية", fontSize = 11.sp, maxLines = 1)
+                Spacer(Modifier.width(6.dp))
+                Text("استيراد مقاطع فيديو من الجهاز", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
 
             IconButton(
@@ -390,20 +376,20 @@ fun BatchProcessingQueueComponent(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "قم باستيراد عدة مقاطع فيديو من جهازك أو أضف حزمة المشاهد التجريبية لدبلجتها دفعة واحدة تلقائياً بالذكاء الاصطناعي.",
+                        text = "قم باستيراد مقاطع الفيديو من جهازك لمعالجتها ودبلجتها دفعة واحدة تلقائياً بالذكاء الاصطناعي.",
                         color = Color(0xFF94A3B8),
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(6.dp))
                     Button(
-                        onClick = onAddSamplePack,
+                        onClick = { multipleVideoLauncher.launch("video/*") },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Movie, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("إضافة مشاهد تجريبية للبدء الآن", fontSize = 12.sp)
+                        Text("استيراد مقاطع فيديو الآن 🎬", fontSize = 12.sp)
                     }
                 }
             }
