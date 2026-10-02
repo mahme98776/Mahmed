@@ -7,6 +7,8 @@ import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import com.example.security.BiometricAuthenticationHelper
+import com.example.security.DeviceAccountSecurityManager
+import android.accounts.AccountManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -97,6 +99,24 @@ fun GoogleSignInGateScreen(
     var enableBiometricOnRegister by remember { mutableStateOf(true) }
     val isBiometricHardwareAvailable = remember {
         BiometricAuthenticationHelper.canAuthenticate(context) == BiometricAuthenticationHelper.BiometricStatus.Available
+    }
+
+    val chooseAccountLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val accountName = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
+            if (!accountName.isNullOrBlank()) {
+                customEmail = accountName.trim()
+                DeviceAccountSecurityManager.recordVerifiedDeviceEmail(context, customEmail)
+                Toast.makeText(context, "تم اختيار وتأكيد حساب الجهاز: $customEmail 📱✓", Toast.LENGTH_SHORT).show()
+                inputError = null
+            }
+        }
+    }
+
+    val deviceSecuritySummary = remember {
+        DeviceAccountSecurityManager.evaluateDeviceSecurity(context)
     }
 
     val speechLauncher = rememberLauncherForActivityResult(
@@ -201,6 +221,7 @@ fun GoogleSignInGateScreen(
             loginStepMessage = "جاري التحقق من هوية الحساب في Firebase..."
             val result = authService.signInWithEmailAndPassword(trimmedEmail, trimmedPass)
             if (result.isSuccess) {
+                DeviceAccountSecurityManager.recordVerifiedDeviceEmail(context, trimmedEmail)
                 loginStepMessage = "تم تسجيل الدخول وتجهيز مجلد التخزين بنجاح 📁✓"
                 isSuccessDone = true
                 Toast.makeText(context, "أهلاً بك! تم تأكيد تسجيل الدخول بنجاح", Toast.LENGTH_SHORT).show()
@@ -279,6 +300,7 @@ fun GoogleSignInGateScreen(
             loginStepMessage = "جاري التحقق من نقر رابط التفعيل في البريد الإلكتروني..."
             val result = authService.checkEmailActivationStatus(trimmedEmail, trimmedPass)
             if (result.isSuccess) {
+                DeviceAccountSecurityManager.recordVerifiedDeviceEmail(context, trimmedEmail)
                 // If user selected biometric enrollment, save it now
                 if (enableBiometricOnRegister) {
                     BiometricAuthenticationHelper.setBiometricEnrollment(context, trimmedEmail, trimmedPass, true)
@@ -298,7 +320,7 @@ fun GoogleSignInGateScreen(
     fun handleBiometricAuthentication() {
         val trimmedEmail = customEmail.trim()
         if (trimmedEmail.isEmpty()) {
-            inputError = "يرجى كتابة البريد الإلكتروني للتحقق من البصمة أو الوجه"
+            inputError = "يرجى كتابة أو اختيار البريد الإلكتروني للتحقق من البصمة أو الوجه 🛡️"
             return
         }
 
@@ -308,21 +330,45 @@ fun GoogleSignInGateScreen(
             return
         }
 
-        val savedPass = BiometricAuthenticationHelper.getSavedPasswordForBiometric(context, trimmedEmail)
         val isDev = trimmedEmail.lowercase() == "mahme98776@gmail.com"
 
+        // 1. فحص القفل المؤقت ضد محاولات التخمين المتكررة (Anti-Brute Force Lockout)
+        val remainingSec = BiometricAuthenticationHelper.getLockoutRemainingSeconds(context, trimmedEmail)
+        if (remainingSec > 0) {
+            inputError = "⚠️ تم تعليق المصادقة الحيوية مؤقتاً لحماية الحساب. يرجى الانتظار $remainingSec ثانية أو استخدام كلمة المرور."
+            return
+        }
+
+        // 2. فحص أمان قفل الشاشة بالجهاز
+        if (!deviceSecuritySummary.isDeviceLockSecure) {
+            inputError = "⚠️ تنبيه أمان وسلامة: قفل الشاشة غير مفعل على جهازك! يرجى تفعيل قفل الشاشة (PIN أو النمط أو كلمة المرور) في إعدادات النظام لضمان سلامة المصادقة الحيوية."
+            return
+        }
+
+        // 3. التحقق الصارم من تواجد البريد الإلكتروني على هذا الجهاز لزيادة الأمان والسلامة
+        val presenceStatus = DeviceAccountSecurityManager.checkEmailPresenceOnDevice(context, trimmedEmail)
+        val isVerifiedOnDevice = presenceStatus is DeviceAccountSecurityManager.DeviceAccountStatus.VerifiedOnDevice || isDev
+        if (!isVerifiedOnDevice) {
+            inputError = "⚠️ تنبيه أمني مشدد: هذا البريد الإلكتروني غير متواجد على هذا الجهاز! لضمان الأمان والسلامة ومنع الدخول غير المصرح به، يرجى اختيار حساب مسجل على الجهاز عبر الزر أعلاه أو تسجيل الدخول بكلمة المرور أولاً."
+            return
+        }
+
+        val savedPass = BiometricAuthenticationHelper.getSavedPasswordForBiometric(context, trimmedEmail)
+
         if (!BiometricAuthenticationHelper.isBiometricConfiguredForUser(context, trimmedEmail) && !isDev) {
-            inputError = "لم يتم تعيين البصمة أو الوجه لهذا الحساب بعد. يرجى تسجيل الدخول بكلمة المرور وتفعيلها من الإعدادات."
+            inputError = "لم يتم تعيين البصمة أو الوجه لهذا الحساب بعد. يرجى تسجيل الدخول بكلمة المرور وتفعيلها بأمان."
             return
         }
 
         inputError = null
         BiometricAuthenticationHelper.authenticate(
             activity = activity,
-            title = if (isDev) "مصادقة المطور المعتمد (بصمة / وجه) 👑" else "المصادقة الحيوية (بصمة / وجه) 🛡️",
-            subtitle = "أكد هويتك عبر مستشعر البصمة أو الكاميرا لمتابعة الدخول الفوري",
+            email = trimmedEmail,
+            title = if (isDev) "مصادقة المطور المعتمد (بصمة / وجه) 👑" else "المصادقة الحيوية المشفرة (بصمة / وجه) 🛡️",
+            subtitle = "أكد هويتك عبر مستشعر البصمة أو التعرف على الوجه لمتابعة الدخول الفوري",
             onSuccess = {
                 coroutineScope.launch {
+                    DeviceAccountSecurityManager.recordVerifiedDeviceEmail(context, trimmedEmail)
                     loginStepMessage = "تم التحقق الحيوي بنجاح! جاري تسجيل الدخول الآمن..."
                     if (isDev) {
                         // Developer biometric direct authentication
@@ -352,7 +398,7 @@ fun GoogleSignInGateScreen(
                         }
                     } else {
                         loginStepMessage = ""
-                        inputError = "يرجى تسجيل الدخول بكلمة المرور أولاً لتحديث بيانات البصمة."
+                        inputError = "يرجى تسجيل الدخول بكلمة المرور أولاً لتحديث بيانات البصمة المشفرة."
                     }
                 }
             },
@@ -719,6 +765,63 @@ fun GoogleSignInGateScreen(
                             icon = Icons.Filled.Speed,
                             text = "تفعيل حصة Gemini السحابية الفائقة للمشاريع والصوتيات"
                         )
+                        CloudFeatureRow(
+                            icon = Icons.Filled.Security,
+                            text = "مصادقة حيوية مشفرة (بصمة الوجه والإصبع) مربوطة بحسابات هذا الجهاز 📱🔒"
+                        )
+                    }
+                }
+
+                // Device Security & Identity Verification Card
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (deviceSecuritySummary.isDeviceLockSecure) Color(0xFFF1F8E9) else Color(0xFFFFF3E0),
+                    border = BorderStroke(1.dp, if (deviceSecuritySummary.isDeviceLockSecure) Color(0xFF81C784) else Color(0xFFFFB74D)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (deviceSecuritySummary.isDeviceLockSecure) Icons.Filled.Security else Icons.Filled.Warning,
+                                    contentDescription = null,
+                                    tint = if (deviceSecuritySummary.isDeviceLockSecure) Color(0xFF2E7D32) else Color(0xFFE65100),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "حالة أمان وسلامة هذا الجهاز",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (deviceSecuritySummary.isDeviceLockSecure) Color(0xFF1B5E20) else Color(0xFFBF360C)
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (deviceSecuritySummary.securityRatingScore >= 75) Color(0xFF2E7D32) else Color(0xFFE65100)
+                            ) {
+                                Text(
+                                    text = "درجة الأمان: ${deviceSecuritySummary.securityRatingScore}%",
+                                    color = Color.White,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = deviceSecuritySummary.securityAdviceArabic,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 15.sp
+                        )
                     }
                 }
 
@@ -1070,11 +1173,143 @@ fun GoogleSignInGateScreen(
                                 leadingIcon = {
                                     Icon(Icons.Filled.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 },
+                                trailingIcon = {
+                                    IconButton(
+                                        onClick = {
+                                            try {
+                                                chooseAccountLauncher.launch(
+                                                    DeviceAccountSecurityManager.createDeviceAccountPickerIntent(customEmail)
+                                                )
+                                            } catch (_: Exception) {
+                                                Toast.makeText(context, "يمكنك كتابة بريدك الإلكتروني مباشرة 📱", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.AccountCircle,
+                                            contentDescription = "اختيار حساب من الجهاز",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                                 modifier = Modifier.fillMaxWidth().testTag("input_google_email"),
                                 shape = RoundedCornerShape(12.dp)
                             )
+
+                            // Quick Button: Pick & Verify Email from Android Device Accounts
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        chooseAccountLauncher.launch(
+                                            DeviceAccountSecurityManager.createDeviceAccountPickerIntent(customEmail)
+                                        )
+                                    } catch (_: Exception) {
+                                        Toast.makeText(context, "يمكنك كتابة بريدك الإلكتروني والتحقق منه مباشرة 📱", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(42.dp)
+                                    .testTag("btn_verify_device_account"),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                            ) {
+                                Icon(
+                                    Icons.Filled.PhoneAndroid,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "اختيار وتأكيد البريد من حسابات هذا الجهاز 📱",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            // Live Device Account Verification Feedback (فحص الأمان والسلامة)
+                            if (customEmail.isNotBlank() && customEmail.contains("@")) {
+                                val presenceStatus = remember(customEmail) {
+                                    DeviceAccountSecurityManager.checkEmailPresenceOnDevice(context, customEmail)
+                                }
+                                when (presenceStatus) {
+                                    is DeviceAccountSecurityManager.DeviceAccountStatus.VerifiedOnDevice -> {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFFE8F5E9),
+                                            border = BorderStroke(1.dp, Color(0xFF2E7D32)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.VerifiedUser,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF2E7D32),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Column {
+                                                    Text(
+                                                        text = "حساب موثق ومسجل على هذا الجهاز 📱✅",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF1B5E20)
+                                                    )
+                                                    Text(
+                                                        text = "تم التحقق: هذا البريد الإلكتروني مسجل ضمن حسابات نظام أندرويد لهذا الجهاز، ومؤهل للمصادقة الحيوية (بصمة الإصبع والوجه) بأعلى معايير الأمان والسلامة.",
+                                                        fontSize = 10.5.sp,
+                                                        color = Color(0xFF2E7D32),
+                                                        lineHeight = 14.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    is DeviceAccountSecurityManager.DeviceAccountStatus.NotOnDevice -> {
+                                        if (customEmail.lowercase() != "mahme98776@gmail.com") {
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = Color(0xFFFFF8E1),
+                                                border = BorderStroke(1.dp, Color(0xFFFFA000)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(10.dp)) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            Icons.Filled.SecurityUpdateWarning,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFFE65100),
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                        Spacer(Modifier.width(8.dp))
+                                                        Text(
+                                                            text = "⚠️ تنبيه أمان وسلامة: هذا البريد غير مسجل على هذا الجهاز!",
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFFBF360C)
+                                                        )
+                                                    }
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(
+                                                        text = "لزيادة الأمان والسلامة ومنع الدخول غير المصرح به، يوصى باختيار بريد من حسابات جهازك عبر الزر أعلاه لربطه ببصمة الوجه والإصبع بأمان.",
+                                                        fontSize = 10.5.sp,
+                                                        color = Color(0xFFE65100),
+                                                        lineHeight = 14.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else -> {}
+                                }
+                            }
 
                             // Live email uniqueness check in registration mode
                             if (selectedAuthMode == 1 && customEmail.contains("@") && customEmail.contains(".")) {

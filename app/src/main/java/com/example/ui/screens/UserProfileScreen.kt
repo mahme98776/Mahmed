@@ -525,6 +525,7 @@ fun UserProfileScreen(
                                     if (activity != null) {
                                         BiometricAuthenticationHelper.authenticate(
                                             activity = activity,
+                                            email = userProfile.email,
                                             title = "اختبار المصادقة الحيوية 🛡️",
                                             subtitle = "المس مستشعر البصمة أو انظر إلى الكاميرا",
                                             onSuccess = {
@@ -949,6 +950,7 @@ fun UserProfileScreen(
                             isSetupTesting = true
                             BiometricAuthenticationHelper.authenticate(
                                 activity = activity,
+                                email = userProfile.email,
                                 title = "تأكيد بصمة الإصبع أو الوجه 🛡️",
                                 subtitle = "المس المستشعر للتأكيد والربط بالحساب",
                                 onSuccess = {
