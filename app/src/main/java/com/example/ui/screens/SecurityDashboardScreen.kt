@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
 import com.example.security.AuthConnectedDevice
+import com.example.security.DeviceAccountSecurityManager
 import com.example.security.FailedLoginIncident
 import com.example.security.SecuritySeverity
 import com.example.ui.DubbingViewModel
@@ -405,6 +406,38 @@ fun SecurityDashboardScreen(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = Color(0xFF38BDF8)
+                                    )
+                                }
+
+                                // 6. Device Lock Screen Security
+                                val isDeviceSecure = DeviceAccountSecurityManager.isDeviceScreenLockSecure(context)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("قفل الشاشة الآمن (Keyguard Lock):", fontSize = 11.5.sp, color = Color(0xFFE2E8F0))
+                                    Text(
+                                        text = if (isDeviceSecure) "محمي بـ PIN/نمط/بصمة ✓" else "⚠️ غير مفعل (يوصى بتفعيله)",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDeviceSecure) Color(0xFF22C55E) else Color(0xFFFFB74D)
+                                    )
+                                }
+
+                                // 7. Device Registered Google Accounts
+                                val accounts = DeviceAccountSecurityManager.getRegisteredGoogleAccounts(context)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("حسابات الجهاز الموثقة (Device Accounts):", fontSize = 11.5.sp, color = Color(0xFFE2E8F0))
+                                    Text(
+                                        text = if (accounts.isNotEmpty()) "${accounts.size} حساب موثق 📱✓" else "حسابات النظام جاهزة للاختيار 📱",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF22C55E)
                                     )
                                 }
                             }

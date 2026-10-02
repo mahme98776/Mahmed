@@ -38,6 +38,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.security.AuthConnectedDevice
 import com.example.security.BiometricAuthenticationHelper
+import com.example.security.DeviceAccountSecurityManager
 import com.example.ui.DubbingViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -909,6 +910,44 @@ fun UserProfileScreen(
                             color = MaterialTheme.colorScheme.error,
                             fontSize = 12.sp
                         )
+                    }
+
+                    // Live Device Account Verification Feedback
+                    val presenceStatus = remember(userProfile.email) {
+                        DeviceAccountSecurityManager.checkEmailPresenceOnDevice(context, userProfile.email)
+                    }
+                    if (presenceStatus is DeviceAccountSecurityManager.DeviceAccountStatus.VerifiedOnDevice) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFE8F5E9),
+                            border = BorderStroke(1.dp, Color(0xFF2E7D32)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.VerifiedUser, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("حساب موثق ومسجل على هذا الجهاز 📱✓", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20))
+                            }
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFFF3E0),
+                            border = BorderStroke(1.dp, Color(0xFFFFA000)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.Warning, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("تنبيه: البريد غير مقترن بنظام الجهاز، سيتم التشفير وربط البصمة محلياً 🔒", fontSize = 10.5.sp, color = Color(0xFFBF360C))
+                            }
+                        }
                     }
 
                     Surface(
