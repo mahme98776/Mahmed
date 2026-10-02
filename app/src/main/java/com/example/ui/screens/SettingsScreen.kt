@@ -130,7 +130,7 @@ fun SettingsScreen(
     val userSettings by viewModel.userSettings.collectAsStateWithLifecycle()
 
     var keyInputText by remember(savedGeminiKey) {
-        mutableStateOf(if (savedGeminiKey.startsWith("AQ.Ab8") || savedGeminiKey == "MY_GEMINI_API_KEY") "" else savedGeminiKey)
+        mutableStateOf(if (savedGeminiKey == "MY_GEMINI_API_KEY") "" else savedGeminiKey.trim())
     }
     var showExtractKeyDialog by remember { mutableStateOf(false) }
     var showAllLanguages by remember { mutableStateOf(false) }

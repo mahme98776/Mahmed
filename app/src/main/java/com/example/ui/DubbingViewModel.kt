@@ -580,7 +580,7 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateGeminiApiKey(key: String) {
         // محمد رضا محمود محمود سليمه من أسس هذا التطبيق
-        val trimmed = key.trim()
+        val trimmed = com.example.ai.GeminiUnifiedClient.sanitizeApiKey(key)
         _geminiApiKey.value = trimmed
         aiPrefs.edit()
             .putString("gemini_api_key", trimmed)
@@ -1430,31 +1430,16 @@ class DubbingViewModel(application: Application) : AndroidViewModel(application)
     val currentlyPlayingRecordingId: StateFlow<Long?> = _currentlyPlayingRecordingId.asStateFlow()
 
     init {
-        // Clear previously recorded API keys so user extracts their own personal key
-        val hasPurgedLegacyKey = aiPrefs.getBoolean("has_purged_legacy_key_v4", false)
-        if (!hasPurgedLegacyKey) {
-            aiPrefs.edit()
-                .remove("gemini_api_key")
-                .remove("api_key_extracted_at_v2")
-                .putBoolean("has_purged_legacy_key_v4", true)
-                .commit()
-            getApplication<Application>().getSharedPreferences("ai_dubbing_prefs", android.content.Context.MODE_PRIVATE)
-                .edit().remove("gemini_api_key").commit()
-            getApplication<Application>().getSharedPreferences("dubbing_studio_prefs", android.content.Context.MODE_PRIVATE)
-                .edit().remove("gemini_api_key").commit()
-            getApplication<Application>().getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
-                .edit().remove("custom_gemini_api_key").commit()
-            getApplication<Application>().getSharedPreferences("cloud_tts_prefs", android.content.Context.MODE_PRIVATE)
-                .edit().remove("google_cloud_key").commit()
-
-            _geminiApiKey.value = ""
+        // Restore and maintain user's saved Gemini API key across sessions
+        val savedKey = aiPrefs.getString("gemini_api_key", "")?.trim().orEmpty()
+        if (savedKey.isNotBlank()) {
+            _geminiApiKey.value = savedKey
             val currentTts = _cloudTtsConfig.value
-            val updatedTts = currentTts.copy(googleCloudApiKey = "")
-            _cloudTtsConfig.value = updatedTts
-            cloudTtsPrefs.saveConfig(updatedTts)
-
-            // Automatically open extraction dialog for user
-            _showExtractApiKeyDialog.value = true
+            if (currentTts.googleCloudApiKey.isBlank()) {
+                val updatedTts = currentTts.copy(googleCloudApiKey = savedKey)
+                _cloudTtsConfig.value = updatedTts
+                cloudTtsPrefs.saveConfig(updatedTts)
+            }
         }
 
         val db = AppDatabase.getInstance(application)

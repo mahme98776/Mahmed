@@ -188,6 +188,11 @@ fun AlexaVoiceAssistantModal(
         }
     }
 
+    // Auto-start listening as soon as voice assistant opens
+    LaunchedEffect(Unit) {
+        startListeningWithPermission()
+    }
+
     Dialog(
         onDismissRequest = {
             assistantEngine.stopListening()

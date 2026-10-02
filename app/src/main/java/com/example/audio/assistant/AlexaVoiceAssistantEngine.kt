@@ -352,7 +352,6 @@ class AlexaVoiceAssistantEngine(
                     }
                 }
             } else {
-                // Graceful idle reset without aggressive error alerts
                 _assistantState.value = AlexaAssistantState.Idle
             }
 
@@ -361,13 +360,15 @@ class AlexaVoiceAssistantEngine(
                 try {
                     speechRecognizer?.destroy()
                     speechRecognizer = null
+                    initSpeechRecognizer()
                 } catch (_: Exception) {}
             }
 
-            // Only attempt restart if we haven't hit consecutive error threshold
-            if (consecutiveErrorCount < 3 && _isContinuousWakeWordListening.value) {
+            // Immediately restart on speech timeout / no match so assistant is always ready and never hangs
+            if (consecutiveErrorCount < 10) {
                 scheduleAutoRestartIfNeeded()
             } else {
+                consecutiveErrorCount = 0
                 _isContinuousWakeWordListening.value = false
             }
         }
@@ -735,7 +736,10 @@ class AlexaVoiceAssistantEngine(
                             } catch (e: Exception) {
                                 Log.w(tag, "Gemini flexible intent fallback: ${e.message}")
                                 withContext(Dispatchers.Main) {
-                                    _assistantState.value = AlexaAssistantState.Idle
+                                    val fallbackReply = "أنا معك، تم استلام أمرك الصوتي. يمكنك دائماً طلب الدبلجة، تسجيل الصوت، أو فتح الاستوديو."
+                                    _assistantState.value = AlexaAssistantState.Speaking(fallbackReply)
+                                    ttsManager.speakText(fallbackReply, utteranceId = "gemini_voice_fallback")
+                                    viewModel.showToast(fallbackReply.take(75))
                                 }
                             }
                         }

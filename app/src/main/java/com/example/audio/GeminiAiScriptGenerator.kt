@@ -216,7 +216,14 @@ class GeminiAiScriptGenerator(private val context: Context) {
                 })
             }
 
-            val candidateModels = listOf("gemini-3.5-flash", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash")
+            val candidateModels = listOf(
+                "gemini-2.5-flash",
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-latest",
+                "gemini-3.5-flash",
+                "gemini-3.1-flash-lite-preview"
+            )
             var responseBody = ""
             var success = false
 

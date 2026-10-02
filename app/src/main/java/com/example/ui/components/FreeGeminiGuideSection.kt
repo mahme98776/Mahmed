@@ -108,7 +108,7 @@ fun FreeGeminiGuideSection(
     val appPrefs = remember { context.getSharedPreferences("app_ai_prefs", Context.MODE_PRIVATE) }
     var currentApiKey by remember {
         val raw = aiClient.resolveApiKey()
-        mutableStateOf(if (raw.startsWith("AQ.Ab8") || raw == "MY_GEMINI_API_KEY") "" else raw)
+        mutableStateOf(if (raw == "MY_GEMINI_API_KEY") "" else raw)
     }
     var apiKeyInput by remember { mutableStateOf(currentApiKey) }
     var isKeyVisible by remember { mutableStateOf(false) }
@@ -435,7 +435,7 @@ fun FreeGeminiGuideSection(
                 ) {
                     Button(
                         onClick = {
-                            val keyToSave = apiKeyInput.trim()
+                            val keyToSave = com.example.ai.GeminiUnifiedClient.sanitizeApiKey(apiKeyInput)
                             appPrefs.edit().putString("gemini_api_key", keyToSave).apply()
                             currentApiKey = keyToSave
                             Toast.makeText(context, "تم حفظ المفتاح بأمان في ذاكرة التطبيق المشفرة ✓", Toast.LENGTH_SHORT).show()
@@ -454,25 +454,14 @@ fun FreeGeminiGuideSection(
                             pingResultText = null
                             pingLatencyMs = null
                             coroutineScope.launch {
-                                val startTime = System.currentTimeMillis()
-                                val testKey = apiKeyInput.ifBlank { currentApiKey }
-                                val result = aiClient.sendChatMessage(
-                                    messages = emptyList(),
-                                    userPrompt = "قل كلمة واحدة فقط للتأكيد: جاهز",
-                                    model = GeminiChatModel.FLASH_3_5,
-                                    customApiKey = testKey
-                                )
-                                val duration = System.currentTimeMillis() - startTime
-                                pingLatencyMs = duration
-
-                                result.onSuccess { reply ->
-                                    isPingSuccess = true
-                                    pingResultText = "الاتصال ناجح ومجاني 100%! استجابة الذكاء الاصطناعي: \"${reply.text.trim()}\""
+                                val testKey = com.example.ai.GeminiUnifiedClient.sanitizeApiKey(apiKeyInput.ifBlank { currentApiKey })
+                                val testResult = aiClient.verifyAndTestApiKey(testKey)
+                                pingLatencyMs = testResult.latencyMs
+                                isPingSuccess = testResult.isSuccess
+                                pingResultText = testResult.messageArabic
+                                if (testResult.isSuccess) {
                                     requestsMadeToday++
                                     appPrefs.edit().putInt("free_quota_requests_today", requestsMadeToday).apply()
-                                }.onFailure { error ->
-                                    isPingSuccess = false
-                                    pingResultText = "تنبيه في الاتصال: ${error.message ?: "يرجى التحقق من المفتاح"}"
                                 }
                                 isTestingConnection = false
                             }

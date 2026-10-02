@@ -97,7 +97,6 @@ class GeminiAudioDenoiseEnhancer(private val context: Context) {
         return lower.contains("your_api_key") ||
                 lower.contains("my_gemini_api_key") ||
                 lower == "null" ||
-                key.startsWith("AQ.Ab8") ||
                 key.isBlank()
     }
 

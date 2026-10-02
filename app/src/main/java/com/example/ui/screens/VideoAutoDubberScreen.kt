@@ -1256,7 +1256,7 @@ fun VideoAutoDubberScreen(
 
         // 4.5 Gemini API Key Notice & Extraction Card
         item {
-            val isKeyMissing = savedGeminiKey.isBlank() || savedGeminiKey.startsWith("AQ.Ab8") || savedGeminiKey == "MY_GEMINI_API_KEY"
+            val isKeyMissing = savedGeminiKey.isBlank() || savedGeminiKey == "MY_GEMINI_API_KEY"
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1330,7 +1330,7 @@ fun VideoAutoDubberScreen(
         // 5. Action Button: Start Auto Dubbing
         item {
             val isReady = autoDubState.importedVideo != null
-            val isKeyMissing = savedGeminiKey.isBlank() || savedGeminiKey.startsWith("AQ.Ab8") || savedGeminiKey == "MY_GEMINI_API_KEY"
+            val isKeyMissing = savedGeminiKey.isBlank() || savedGeminiKey == "MY_GEMINI_API_KEY"
             Button(
                 onClick = {
                     if (isKeyMissing) {

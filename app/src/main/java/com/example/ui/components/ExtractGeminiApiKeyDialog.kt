@@ -96,7 +96,7 @@ fun ExtractGeminiApiKeyDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var keyInput by remember(currentSavedKey) { mutableStateOf(if (currentSavedKey.startsWith("AQ.Ab8") || currentSavedKey == "MY_GEMINI_API_KEY") "" else currentSavedKey) }
+    var keyInput by remember(currentSavedKey) { mutableStateOf(com.example.ai.GeminiUnifiedClient.sanitizeApiKey(currentSavedKey)) }
     var isKeyVisible by remember { mutableStateOf(false) }
 
     // Ping / Test state
@@ -382,17 +382,13 @@ fun ExtractGeminiApiKeyDialog(
                     // Save Button
                     Button(
                         onClick = {
-                            val trimmed = keyInput.trim()
+                            val trimmed = com.example.ai.GeminiUnifiedClient.sanitizeApiKey(keyInput)
                             if (trimmed.isBlank()) {
                                 Toast.makeText(context, "يرجى لصق أو إدخال مفتاح صالح أولاً", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
-                            if (trimmed.startsWith("AQ.Ab8") || trimmed == "MY_GEMINI_API_KEY") {
-                                Toast.makeText(context, "هذا المفتاح غير صالح. يرجى استخراج مفتاحك الخاص من الزر الأزرق أعلاه", Toast.LENGTH_LONG).show()
-                                return@Button
-                            }
                             onSaveKey(trimmed)
-                            Toast.makeText(context, "تم حفظ وتفعيل مفتاح Gemini الجديد بنجاح! 🎉", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "تم حفظ وتفعيل مفتاح Gemini بنجاح! 🎉", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         },
                         modifier = Modifier
@@ -415,36 +411,23 @@ fun ExtractGeminiApiKeyDialog(
                         // Live Ping Button
                         OutlinedButton(
                             onClick = {
-                                val keyToTest = keyInput.trim()
+                                val keyToTest = com.example.ai.GeminiUnifiedClient.sanitizeApiKey(keyInput)
                                 if (keyToTest.isBlank()) {
-                                    Toast.makeText(context, "يرجى إدخال مفتاح لاختباره", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "يرجى إدخال أو لصق مفتاح لاختباره", Toast.LENGTH_SHORT).show()
                                     return@OutlinedButton
                                 }
                                 if (aiClient == null) {
-                                    Toast.makeText(context, "المفتاح جاهز للحفظ", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "المفتاح جاهز للحفظ مباشرة دون اختبار", Toast.LENGTH_SHORT).show()
                                     return@OutlinedButton
                                 }
                                 isTestingConnection = true
                                 pingResult = null
                                 coroutineScope.launch {
-                                    val start = System.currentTimeMillis()
-                                    val result = aiClient.sendChatMessage(
-                                        messages = emptyList(),
-                                        userPrompt = "رد بكلمة واحدة: جاهز",
-                                        model = GeminiChatModel.FLASH_3_5,
-                                        customApiKey = keyToTest
-                                    )
-                                    val latency = System.currentTimeMillis() - start
-                                    pingLatencyMs = latency
+                                    val testResult = aiClient.verifyAndTestApiKey(keyToTest)
+                                    pingLatencyMs = testResult.latencyMs
                                     isTestingConnection = false
-                                    if (result.isSuccess) {
-                                        isPingSuccess = true
-                                        pingResult = "المفتاح يعمل بنجاح! متصل بـ Gemini 3.5 Flash 🟢"
-                                    } else {
-                                        isPingSuccess = false
-                                        val err = result.exceptionOrNull()?.message ?: "خطأ غير معروف"
-                                        pingResult = "فشل التحقق من المفتاح: $err"
-                                    }
+                                    isPingSuccess = testResult.isSuccess
+                                    pingResult = testResult.messageArabic
                                 }
                             },
                             enabled = !isTestingConnection && keyInput.isNotBlank(),

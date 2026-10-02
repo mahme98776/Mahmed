@@ -214,8 +214,7 @@ class GeminiVideoAudioTranscriptionService(private val context: Context) {
         return lower.contains("your_gemini") ||
                 lower.contains("my_gemini_api_key") ||
                 lower.contains("your_api_key") ||
-                key.isBlank() ||
-                key.startsWith("AQ.Ab8")
+                key.isBlank()
     }
 
     private fun maskApiKey(key: String): String {
@@ -448,23 +447,46 @@ class GeminiVideoAudioTranscriptionService(private val context: Context) {
             }
 
             val requestBodyStr = requestJson.toString()
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/$geminiModel:generateContent?key=$apiKey"
-            addLog(logs, "INFO", "إرسال طلب التحليل الصوتي السحابي", "النموذج: $geminiModel | نقطة النهاية: Google Generative Language REST API | حجم الطلب: ${requestBodyStr.length / 1024} KB")
+            val candidateModels = listOf(
+                "gemini-2.5-flash",
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-latest",
+                "gemini-3.5-flash",
+                "gemini-3.1-flash-lite-preview"
+            )
 
-            val request = Request.Builder()
-                .url(url)
-                .post(requestBodyStr.toRequestBody("application/json; charset=utf-8".toMediaType()))
-                .build()
-
+            var successfulResponse: okhttp3.Response? = null
+            var lastHttpCode = 0
+            var lastResponseBody = ""
             val callStartTime = System.currentTimeMillis()
-            val response = httpClient.newCall(request).execute()
+
+            for (mod in candidateModels) {
+                try {
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$mod:generateContent?key=$apiKey"
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(requestBodyStr.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                        .build()
+
+                    val resp = httpClient.newCall(request).execute()
+                    lastHttpCode = resp.code
+                    if (resp.isSuccessful) {
+                        successfulResponse = resp
+                        addLog(logs, "SUCCESS", "استلام استجابة الخادم", "النموذج: $mod | رمز الاستجابة HTTP: ${resp.code} | زمن الاستجابة: ${System.currentTimeMillis() - callStartTime} ms", httpCode = resp.code)
+                        break
+                    } else {
+                        lastResponseBody = resp.body?.string().orEmpty()
+                    }
+                } catch (_: Exception) {}
+            }
+
+            val response = successfulResponse
+            val httpCode = lastHttpCode
             val latency = System.currentTimeMillis() - callStartTime
-            val httpCode = response.code
 
-            addLog(logs, if (response.isSuccessful) "SUCCESS" else "WARN", "استلام استجابة الخادم", "رمز الاستجابة HTTP: $httpCode | زمن الاستجابة: ${latency} ms", httpCode = httpCode)
-
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string().orEmpty()
+            if (response == null || !response.isSuccessful) {
+                val errorBody = lastResponseBody
                 val failureReason = when (httpCode) {
                     429 -> "تم تجاوز حصة استخدام Gemini API المتاحة (Quota Exceeded / Rate Limit). جاري التبديل التلقائي للمحرك الاحتياطي المحلي."
                     503 -> "خوادم Gemini في حالة ضغط مؤقت (Model Overloaded). جاري تفعيل المحرك الاحتياطي المحلي."

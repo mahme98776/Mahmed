@@ -210,16 +210,36 @@ class GeminiVideoToAudioDubbingService(
                 })
             }
 
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/$geminiModel:generateContent?key=$apiKey"
+            val candidateModels = listOf(
+                "gemini-2.5-flash",
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-latest",
+                "gemini-3.5-flash",
+                "gemini-3.1-flash-lite-preview"
+            )
 
             val body = requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url(url)
-                .post(body)
-                .build()
+            var successfulResponse: okhttp3.Response? = null
 
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
+            for (mod in candidateModels) {
+                try {
+                    val url = "https://generativelanguage.googleapis.com/v1beta/models/$mod:generateContent?key=$apiKey"
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(body)
+                        .build()
+
+                    val resp = httpClient.newCall(request).execute()
+                    if (resp.isSuccessful) {
+                        successfulResponse = resp
+                        break
+                    }
+                } catch (_: Exception) {}
+            }
+
+            val response = successfulResponse
+            if (response == null || !response.isSuccessful) {
                 val fallbackAnalysis = createOfflineFallbackAnalysis(keyframes, durationSeconds, targetDialect)
                 return@withContext Result.success(fallbackAnalysis)
             }
