@@ -135,6 +135,7 @@ fun AladLiveDubbingScreen(
     val isDuckingActive by aladEngine.duckingManager.isDuckingActive.collectAsStateWithLifecycle()
     val duckingPercent by aladEngine.duckingManager.duckingPercentage.collectAsStateWithLifecycle()
     val isFloatingServiceRunning by AladFloatingWidgetService.isServiceRunning.collectAsStateWithLifecycle()
+    val liveStatusMessage by aladEngine.liveStatusMessage.collectAsStateWithLifecycle()
 
     var showLanguageDialog by remember { mutableStateOf(false) }
     var languageSearchQuery by remember { mutableStateOf("") }
@@ -769,6 +770,31 @@ fun AladLiveDubbingScreen(
                                 )
                             }
                         }
+                    // Real-time Engine Status Message
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isLiveDubbing) Color(0xFF601410).copy(alpha = 0.5f) else Color(0xFF332D41),
+                        border = BorderStroke(1.dp, if (isLiveDubbing) Color(0xFFB3261E) else Color(0xFF49454F)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isLiveDubbing) Icons.Filled.RecordVoiceOver else Icons.Filled.CheckCircle,
+                                contentDescription = null,
+                                tint = if (isLiveDubbing) Color(0xFFF2B8B5) else Color(0xFFD0BCFF),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = liveStatusMessage,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isLiveDubbing) Color(0xFFF2B8B5) else Color(0xFFE6E1E5)
+                            )
+                        }
                     }
 
                     // Original Speech Box
@@ -838,6 +864,7 @@ fun AladLiveDubbingScreen(
                 }
             }
         }
+    }
     }
 
     // 78 Languages Search & Selection Dialog

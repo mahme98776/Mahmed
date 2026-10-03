@@ -169,6 +169,7 @@ class AlexaVoiceAssistantEngine(
         activeViewModel = viewModel
         activeNavigationCallback = onNavigate
         consecutiveErrorCount = 0
+        ttsManager.stop()
         _lastTranscript.value = trimmed
         _assistantState.value = AlexaAssistantState.Thinking
         handleRecognizedSpeech(trimmed)
@@ -280,6 +281,7 @@ class AlexaVoiceAssistantEngine(
             }
 
             triggerHapticFeedback(45L)
+            ttsManager.stop()
             _assistantState.value = AlexaAssistantState.Listening
             isListeningSessionActive = true
             recognizer.startListening(intent)
@@ -323,6 +325,7 @@ class AlexaVoiceAssistantEngine(
 
         override fun onBeginningOfSpeech() {
             consecutiveErrorCount = 0
+            ttsManager.stop()
             _assistantState.value = AlexaAssistantState.Listening
         }
 

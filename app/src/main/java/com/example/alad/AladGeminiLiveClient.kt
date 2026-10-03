@@ -89,17 +89,17 @@ class AladGeminiLiveClient(
         val startTime = System.currentTimeMillis()
         _liveOriginalText.value = originalText
 
-        val prompt = "You are ALAD (AI Live Audio Dubber). Translate the following spoken line into ${targetLanguage.nameEnglish} (${targetLanguage.nameArabic}) immediately for voice dubbing. Output ONLY the natural dubbed sentence without explanation, tags, or markdown.\n\nInput Speech: \"$originalText\""
+        val prompt = "You are ALAD (AI Live Audio Dubber). Automatically detect the source language and dialect of the input speech. Translate the spoken line immediately into ${targetLanguage.nameEnglish} (${targetLanguage.nameArabic}). If the target is an Arabic dialect (like Egyptian, Gulf, Levantine, Maghrebi), translate naturally using that exact dialect's native conversational idioms. Output ONLY the natural spoken dubbed sentence without quotes, explanation, tags, or markdown.\n\nInput Speech: \"$originalText\""
 
         val translationResult = try {
             val res = geminiClient.executeDirectPrompt(
                 userPrompt = prompt,
                 model = "gemini-2.5-flash",
-                systemInstruction = "You are a professional real-time simultaneous audio dubber. Output only the translated spoken sentence accurately and smoothly.",
+                systemInstruction = "You are a professional real-time simultaneous audio dubber. Output only the translated spoken sentence accurately, fluently, and matching the requested dialect and emotion.",
                 customApiKey = customApiKey
             )
             if (res.isSuccess) {
-                res.getOrNull()?.trim() ?: ""
+                res.getOrNull()?.trim()?.removePrefix("\"")?.removeSuffix("\"") ?: ""
             } else {
                 Log.w(tag, "Translation failed: ${res.exceptionOrNull()?.message}")
                 ""
@@ -124,7 +124,7 @@ class AladGeminiLiveClient(
     fun speakDubbedText(text: String, language: AladLanguage) {
         if (!isTtsReady || textToSpeech == null) return
         try {
-            val locale = parseLocale(language.code)
+            val locale = parseLocale(language.dialectCode.ifEmpty { language.code })
             textToSpeech?.language = locale
             textToSpeech?.setPitch(language.defaultPitch)
             textToSpeech?.setSpeechRate(language.defaultSpeed)
@@ -137,21 +137,31 @@ class AladGeminiLiveClient(
     }
 
     private fun parseLocale(code: String): Locale {
-        return when {
-            code.startsWith("ar") -> Locale("ar")
-            code.startsWith("en") -> Locale("en")
-            code.startsWith("fr") -> Locale("fr")
-            code.startsWith("es") -> Locale("es")
-            code.startsWith("de") -> Locale("de")
-            code.startsWith("it") -> Locale("it")
-            code.startsWith("ja") -> Locale("ja")
-            code.startsWith("ko") -> Locale("ko")
-            code.startsWith("zh") -> Locale("zh")
-            code.startsWith("ru") -> Locale("ru")
-            code.startsWith("tr") -> Locale("tr")
-            code.startsWith("hi") -> Locale("hi")
-            code.startsWith("pt") -> Locale("pt")
-            else -> Locale(code.split("-")[0])
+        return when (code) {
+            "ar-EG" -> Locale("ar", "EG")
+            "ar-SA" -> Locale("ar", "SA")
+            "ar-SY" -> Locale("ar", "SY")
+            "ar-MA" -> Locale("ar", "MA")
+            "en-US" -> Locale.US
+            "en-GB" -> Locale.UK
+            "en-AU" -> Locale("en", "AU")
+            "en-IN" -> Locale("en", "IN")
+            "es-ES" -> Locale("es", "ES")
+            "es-MX" -> Locale("es", "MX")
+            "fr-FR" -> Locale.FRANCE
+            "fr-CA" -> Locale.CANADA_FRENCH
+            "de-DE" -> Locale.GERMANY
+            "it-IT" -> Locale.ITALY
+            "pt-BR" -> Locale("pt", "BR")
+            "pt-PT" -> Locale("pt", "PT")
+            "zh-CN" -> Locale.SIMPLIFIED_CHINESE
+            "zh-TW" -> Locale.TRADITIONAL_CHINESE
+            "ja-JP" -> Locale.JAPAN
+            "ko-KR" -> Locale.KOREA
+            else -> {
+                val parts = code.split("-")
+                if (parts.size >= 2) Locale(parts[0], parts[1]) else Locale(parts[0])
+            }
         }
     }
 
