@@ -9,11 +9,15 @@
  */
 package com.example
 
+import android.app.Activity
 import android.os.Bundle
+import android.util.Log
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import com.example.update.play.PlayInAppUpdateManager
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import com.example.ui.components.OnboardingHelpDialog
@@ -182,6 +186,17 @@ enum class AppTab(
 class MainActivity : FragmentActivity() {
     private val dubbingViewModel: DubbingViewModel by viewModels()
 
+    lateinit var playInAppUpdateManager: PlayInAppUpdateManager
+        private set
+
+    private val playUpdateResultLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            Log.w("MainActivity", "Play in-app update flow canceled or failed with code: ${result.resultCode}")
+        }
+    }
+
     companion object {
         const val EXTRA_AUTO_OPEN_ALEXA = "com.example.action.AUTO_OPEN_ALEXA"
         val globalAlexaTriggerFlow = kotlinx.coroutines.flow.MutableStateFlow(false)
@@ -201,6 +216,15 @@ class MainActivity : FragmentActivity() {
         if (intent?.getBooleanExtra(EXTRA_AUTO_OPEN_ALEXA, false) == true) {
             globalAlexaTriggerFlow.value = true
         }
+
+        // Initialize Google Play Core In-App Update API
+        playInAppUpdateManager = PlayInAppUpdateManager(this)
+        playInAppUpdateManager.checkAndStartUpdate(
+            activity = this,
+            launcher = playUpdateResultLauncher,
+            preferImmediate = false
+        )
+
         enableEdgeToEdge()
         setContent {
             val isDarkMode by dubbingViewModel.isDarkMode.collectAsStateWithLifecycle()
@@ -212,11 +236,26 @@ class MainActivity : FragmentActivity() {
                 CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                     MainScreen(
                         viewModel = dubbingViewModel,
+                        playUpdateManager = playInAppUpdateManager,
                         isDarkMode = isDarkMode,
                         appLanguage = appLanguage
                     )
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::playInAppUpdateManager.isInitialized) {
+            playInAppUpdateManager.resumeUpdateIfNeeded(this)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::playInAppUpdateManager.isInitialized) {
+            playInAppUpdateManager.onDestroy()
         }
     }
 }
@@ -225,6 +264,7 @@ class MainActivity : FragmentActivity() {
 @Composable
 fun MainScreen(
     viewModel: DubbingViewModel,
+    playUpdateManager: PlayInAppUpdateManager? = null,
     isDarkMode: Boolean = true,
     appLanguage: AppLanguage = AppLanguage.ARABIC
 ) {
@@ -755,6 +795,29 @@ fun MainScreen(
                         }
                     }
                 )
+            }
+
+            // Google Play Flexible In-App Update Download Complete Notification
+            if (playUpdateManager != null) {
+                val isPlayDownloaded by playUpdateManager.isUpdateDownloaded.collectAsStateWithLifecycle()
+                if (isPlayDownloaded) {
+                    AlertDialog(
+                        onDismissRequest = { },
+                        icon = { Icon(Icons.Filled.SystemUpdate, contentDescription = null, tint = Color(0xFF00E676)) },
+                        title = { Text("اكتمل تنزيل تحديث Google Play 🚀", fontWeight = FontWeight.Bold) },
+                        text = {
+                            Text("تم تنزيل الإصدار الأحدث من فويس ماستر برو في الخلفية وهو جاهز الآن للتثبيت الفوري والانتقال السلس من القديم للجديد.")
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = { playUpdateManager.completeUpdate() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676))
+                            ) {
+                                Text("إعادة التشغيل وتطبيق التحديث الآن ⚡", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    )
+                }
             }
 
             // Interactive Onboarding & Help Walkthrough Dialog for New Users

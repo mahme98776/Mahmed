@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.example.update.model.AppRelease
 import com.example.update.model.ReleaseChannel
@@ -202,6 +203,12 @@ class OnlineUpdateProvider(private val context: Context) {
 
             val fileLength = currentConnection.contentLength
             val downloadsDir = File(context.cacheDir, "apk_updates").apply { if (!exists()) mkdirs() }
+            // Delete old cached APKs to prevent storage bloat or outdated file collisions
+            downloadsDir.listFiles()?.forEach { oldFile ->
+                if (oldFile.name.endsWith(".apk", ignoreCase = true)) {
+                    try { oldFile.delete() } catch (_: Exception) {}
+                }
+            }
             val outputFile = File(downloadsDir, targetFileName)
 
             currentConnection.inputStream.use { input ->
@@ -229,12 +236,53 @@ class OnlineUpdateProvider(private val context: Context) {
     }
 
     /**
+     * Check if the app has permission to install unknown apps (Android 8.0+)
+     */
+    fun canRequestPackageInstalls(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+    }
+
+    /**
+     * Open system settings screen to allow installing unknown apps
+     */
+    fun openInstallPermissionSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                data = Uri.parse("package:${context.packageName}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        }
+    }
+
+    /**
+     * Prompt Android uninstallation dialog for the old version to allow clean install
+     */
+    fun requestUninstallCurrentVersion() {
+        val intent = Intent(Intent.ACTION_DELETE).apply {
+            data = Uri.parse("package:${context.packageName}")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }
+
+    /**
      * Prompt Android System Package Installer to install downloaded APK
      */
     fun installApk(apkFile: File): Result<Unit> {
         return try {
             if (!apkFile.exists()) {
                 return Result.failure(Exception("ملف التحديث غير موجود على الجهاز"))
+            }
+
+            // Verify permission on Android 8.0+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+                openInstallPermissionSettings()
+                return Result.failure(Exception("يرجى تفعيل صلاحية 'تثبيت التطبيقات من مصادر غير معروفة' ثم إعادة الضغط على تثبيت التحديث."))
             }
 
             val uri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

@@ -112,6 +112,8 @@ dependencies {
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.common)
   implementation(libs.androidx.media3.ui)
+  implementation(libs.google.play.app.update)
+  implementation(libs.google.play.app.update.ktx)
   implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)

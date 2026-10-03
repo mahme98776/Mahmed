@@ -474,22 +474,57 @@ fun InAppOtaCheckTab(
                                 )
                             }
                         } else {
-                            Row(
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Button(
                                     onClick = { onDownloadAndInstall(latestRelease) },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier
-                                        .weight(1f)
+                                        .fillMaxWidth()
                                         .height(44.dp)
                                         .testTag("download_update_button")
                                 ) {
                                     Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Text("تنزيل وتثبيت التحديث مباشرة 📥", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            onlineProvider.requestUninstallCurrentVersion()
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5252)),
+                                        border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.5f)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("إلغاء القديم لتثبيت نظيف 🗑️", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+
+                                    if (!onlineProvider.canRequestPackageInstalls()) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                onlineProvider.openInstallPermissionSettings()
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFFB300)),
+                                            border = BorderStroke(1.dp, Color(0xFFFFB300).copy(alpha = 0.5f)),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("إذن التثبيت ⚙️", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                        }
+                                    }
                                 }
                             }
                         }
