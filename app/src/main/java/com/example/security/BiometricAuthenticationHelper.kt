@@ -63,6 +63,17 @@ object BiometricAuthenticationHelper {
     }
 
     /**
+     * استرجاع كافة الإيميلات التي تم تفعيل القياسات الحيوية (بصمة/وجه) لها على هذا الجهاز
+     */
+    fun getEnrolledBiometricEmails(context: Context): List<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.all.keys
+            .filter { it.startsWith(KEY_BIOMETRIC_PREFIX) && prefs.getBoolean(it, false) }
+            .map { it.removePrefix(KEY_BIOMETRIC_PREFIX) }
+            .distinct()
+    }
+
+    /**
      * التحقق من حالة القفل المؤقت ضد محاولات التخمين المتكررة
      */
     fun getLockoutRemainingSeconds(context: Context, email: String): Long {

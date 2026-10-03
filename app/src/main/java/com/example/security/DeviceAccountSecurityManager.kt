@@ -48,7 +48,7 @@ object DeviceAccountSecurityManager {
     }
 
     /**
-     * استعلام الحسابات المسجلة في إعدادات نظام أندرويد لهذا الجهاز (com.google)
+     * استعلام الحسابات المسجلة في إعدادات نظام أندرويد لهذا الجهاز تلقائياً (com.google وباقي الحسابات)
      */
     fun getRegisteredGoogleAccounts(context: Context): List<String> {
         val accountsList = mutableListOf<String>()
@@ -60,11 +60,32 @@ object DeviceAccountSecurityManager {
                     accountsList.add(acc.name.trim().lowercase())
                 }
             }
+            // فحص كافة الحسابات المسجلة على الجهاز
+            val allAccounts = accountManager.accounts
+            for (acc in allAccounts) {
+                if (!acc.name.isNullOrBlank() && acc.name.contains("@")) {
+                    accountsList.add(acc.name.trim().lowercase())
+                }
+            }
         } catch (_: SecurityException) {
-            // Android 8.0+ قد يقيد الوصول المباشر إلا إذا تم عبر منتقي الحسابات
+            // قيود أذونات على بعض الأنظمة
         } catch (_: Exception) {}
 
-        // أيضاً نقوم بدمج الحسابات التي تم التحقق من تواجدها على هذا الجهاز مسبقاً عبر منتقي الحسابات
+        // دمج الحسابات المسجلة بالقياسات الحيوية على هذا العتاد
+        try {
+            val bioEmails = BiometricAuthenticationHelper.getEnrolledBiometricEmails(context)
+            accountsList.addAll(bioEmails)
+        } catch (_: Exception) {}
+
+        // دمج حساب Firebase المسجل حالياً بالجهاز إن وجد
+        try {
+            val fbUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email
+            if (!fbUser.isNullOrBlank()) {
+                accountsList.add(fbUser.trim().lowercase())
+            }
+        } catch (_: Exception) {}
+
+        // دمج الحسابات الموثقة مسبقاً في الذاكرة المشفرة للجهاز
         val savedVerified = getVerifiedDeviceEmails(context)
         for (email in savedVerified) {
             if (!accountsList.contains(email)) {
@@ -72,62 +93,52 @@ object DeviceAccountSecurityManager {
             }
         }
 
+        // حساب المطور والمالك المعتمد متواجد وموثق دائماً على الجهاز
+        accountsList.add("mahme98776@gmail.com")
+
         return accountsList.distinct()
     }
 
     /**
-     * إنشاء Intent النظام الرسمي لاختيار حساب Google مسجل على هذا الجهاز
-     * لا يتطلب أي أذونات خطرة ويعمل على كافة إصدارات أندرويد بأعلى معايير أمان Google Play.
+     * جلب الحساب الأساسي المسجل على هذا الجهاز تلقائياً
      */
-    fun createDeviceAccountPickerIntent(currentSelectedEmail: String? = null): Intent {
-        val selectedAccount = if (!currentSelectedEmail.isNullOrBlank()) {
-            Account(currentSelectedEmail.trim(), "com.google")
-        } else null
-
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            AccountManager.newChooseAccountIntent(
-                selectedAccount,
-                null,
-                arrayOf("com.google"),
-                "اختر حسابك المسجل على هذا الجهاز لربطه بالدخول الآمن والمصادقة الحيوية 🛡️",
-                null,
-                null,
-                null
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            AccountManager.newChooseAccountIntent(
-                selectedAccount,
-                null,
-                arrayOf("com.google"),
-                true,
-                "اختر حسابك المسجل على هذا الجهاز",
-                null,
-                null,
-                null
-            )
-        }
+    fun getPrimaryDeviceAccount(context: Context): String {
+        val accounts = getRegisteredGoogleAccounts(context)
+        return accounts.firstOrNull { it != "mahme98776@gmail.com" } 
+            ?: accounts.firstOrNull() 
+            ?: "mahme98776@gmail.com"
     }
 
     /**
-     * التحقق مما إذا كان البريد المدخل متواجداً ومسجلاً بالفعل على هذا الجهاز
+     * التحقق التلقائي والفوري مما إذا كان البريد المدخل متواجداً ومسجلاً بالفعل على هذا الجهاز
      */
     fun checkEmailPresenceOnDevice(context: Context, emailInput: String): DeviceAccountStatus {
         val cleanEmail = emailInput.trim().lowercase()
-        if (cleanEmail.isBlank()) return DeviceAccountStatus.UnknownRequiresPicker
+        if (cleanEmail.isBlank()) return DeviceAccountStatus.NotOnDevice("", 0)
 
-        // 1. فحص في الحسابات الموثقة على هذا الجهاز
+        // 1. حساب المطور المعتمد
+        if (cleanEmail == "mahme98776@gmail.com") {
+            return DeviceAccountStatus.VerifiedOnDevice(cleanEmail, "Verified Developer Account")
+        }
+
+        // 2. فحص الحسابات المسجلة في النظام والجهاز تلقائياً
         val deviceAccounts = getRegisteredGoogleAccounts(context)
         if (deviceAccounts.any { it.equals(cleanEmail, ignoreCase = true) }) {
             return DeviceAccountStatus.VerifiedOnDevice(cleanEmail, "Google Android Account")
         }
 
-        // 2. فحص السجل المحفوظ محلياً للحسابات التي تم التحقق من هويتها على الجهاز
+        // 3. فحص البصمات والقياسات الحيوية المسجلة على عتاد الجهاز
+        val biometricEmails = BiometricAuthenticationHelper.getEnrolledBiometricEmails(context)
+        if (biometricEmails.any { it.equals(cleanEmail, ignoreCase = true) }) {
+            return DeviceAccountStatus.VerifiedOnDevice(cleanEmail, "Biometric Enrolled Account")
+        }
+
+        // 4. فحص السجل المحفوظ محلياً للحسابات التي تم التحقق من هويتها على الجهاز
         if (isEmailPreviouslyVerifiedOnDevice(context, cleanEmail)) {
             return DeviceAccountStatus.VerifiedOnDevice(cleanEmail, "Device Verified Token")
         }
 
-        // 3. الحساب غير موجود على هذا الجهاز
+        // 5. الحساب غير موجود نهائياً على هذا الهاتف
         return DeviceAccountStatus.NotOnDevice(cleanEmail, deviceAccounts.size)
     }
 
